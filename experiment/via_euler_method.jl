@@ -8,11 +8,15 @@ using CSV
 using DataFrames
 
 # Read data from CSV file
-df = CSV.read("data/SNLS80mV.csv", ignoreemptylines=true)
+df = CSV.read("../data/SNLS80mV.csv", ignoreemptylines=true)
 df = select(df, [:V1, :V2])
 
+# Shorthand
+input = df[:,1]
+output = df[:,2]
+
 # Time horizon
-T = size(df, 1)
+T = size(df, 1);
 
 """
 State-space formulation of Silverbox's dynamics:
@@ -98,46 +102,62 @@ positive, which means they should be modeled by gamma distributions:
 τ ~ Γ(1, 1e3)
 σ ~ Γ(1, 1e3)
 
+I will introduce another shorthand: θ = [α β] and use the Nonlinear{Unscented}
+node, with θ = exp(η), provide the AR node with a Gaussian form for θ.
+
 """
 
 using ForneyLab
 using LAR
+using ForneyLab: unsafeMean
+using LAR.Node, LAR.Data
 using ProgressMeter
 
 # Start graph
-g = FactorGraph()
+graph = FactorGraph()
 
 # Static parameters
-@RV α ~ Gamma(1, 1e3)
-@RV β ~ Gamma(1, 1e3)
-@RV γ ~ Gamma(1, 1e3)
-@RV τ ~ Gamma(1, 1e3)
+@RV η ~ GaussianMeanPrecision(placeholder(:η_m, dims=(2,)), placeholder(:η_w, dims=(2,2)))
+@RV τ ~ Gamma(placeholder(:τ_a), placeholder(:τ_b))
+
+# Nonlinear function
+g(x) = exp.(x)
+g_inv(x) = log.(x)
+
+# Nonlinear node
+# @RV θ ~ Nonlinear(log_θ; g=g, g_inv=g_inv, dims=(2,))
+@RV θ ~ Nonlinear{Unscented}(η; g=g, dims=(2,))
 
 # I'm fixing measurement noise σ
-σ = 10.
+σ = 0.0001
 
 # Observation selection variable
 c = [1, 0]
 
-# Convenience variables
-θ = [α β]
-
 # State prior
-@RV z_t ~ GaussianMeanPrecision(placeholder(:m_z_t, dims=(2,)), placeholder(:w_z_t, dims=(2, 2)))
+@RV z_t ~ GaussianMeanPrecision(placeholder(:z_m, dims=(2,)), placeholder(:z_w, dims=(2, 2)))
 
 # Autoregressive node
 @RV x_t ~ Autoregressive(θ, z_t, τ)
 
 # Specify likelihood
-@RV y_t ~ GaussianMeanPrecision(dot(c, x_t), σ)
+@RV y_t ~ GaussianMeanVariance(dot(c, x_t), σ)
 
 # Placeholder for data
 placeholder(y_t, :y_t)
 
-# Recognition factorization
-q = RecognitionFactorization(x_t, z_t, θ, τ, ids=[:x, :z, :θ, :τ])
-algo = variationalAlgorithm(q)
-eval(Meta.parse(algo))
+# Draw time-slice subgraph
+ForneyLab.draw(graph)
+
+# Infer an algorithm
+q = PosteriorFactorization(z_t, x_t, θ, η, τ, ids=[:z, :x, :θ, :η, :τ])
+algo = variationalAlgorithm(q, free_energy=true)
+source_code = algorithmSourceCode(algo, free_energy=true)
+eval(Meta.parse(source_code))
+
+# Looking at only the first few timepoints
+# T = 1000
+T = size(df, 1);
 
 # Inference parameters
 num_iterations = 10
@@ -147,10 +167,11 @@ data = Dict()
 marginals = Dict()
 
 # Initialize arrays of parameterizations
-params_x = zeros(T+1,2)
-params_z = zeros(T+1,2)
-params_θ = zeros(T+1,2)
-params_τ = zeros(T+1,2)
+params_x = (zeros(2,T+1), repeat(1. .*float(eye(2)), outer=(1,1,T+1)))
+params_z = (zeros(2,T+1), repeat(1. .*float(eye(2)), outer=(1,1,T+1)))
+params_θ = (zeros(2,T+1), repeat(1. .*float(eye(2)), outer=(1,1,T+1)))
+params_η = (zeros(2,T+1), repeat(1. .*float(eye(2)), outer=(1,1,T+1)))
+params_τ = (1e-3.*ones(1,T+1), ones(1,T+1))
 
 # Start progress bar
 p = Progress(T, 1, "At time ")
@@ -162,10 +183,21 @@ for t = 1:T
     update!(p, t)
 
     # Initialize marginals
-    marginals[:x] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_x[t,1], w=params_x[t,2])
-    marginals[:z] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_z[t,1], w=params_z[t,2])
-    marginals[:θ] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_θ[t,1], w=params_θ[t,2])
-    marginals[:τ] = ProbabilityDistribution(Univariate, Gamma, a=params_τ[1], b=params_τ[2])
+    marginals[:x_t] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_x[1][:,t], w=params_x[2][:,:,t])
+    marginals[:z_t] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_z[1][:,t], w=params_z[2][:,:,t])
+    marginals[:η] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_η[1][:,t], w=params_η[2][:,:,t])
+    marginals[:θ] = ProbabilityDistribution(Multivariate, GaussianMeanPrecision, m=params_θ[1][:,t], w=params_θ[2][:,:,t])
+    marginals[:τ] = ProbabilityDistribution(Univariate, Gamma, a=params_τ[1][1,t], b=params_τ[2][1,t])
+
+    data = Dict(:y_t => output[t],
+                :θ_m => params_θ[1][:,t],
+                :η_m => params_η[1][:,t],
+                :z_m => params_z[1][:,t],
+                :θ_w => params_θ[2][:,:,t],
+                :η_w => params_η[2][:,:,t],
+                :z_w => params_z[2][:,:,t],
+                :τ_a => params_τ[1][1,t],
+                :τ_b => params_τ[2][1,t])
 
     # Iterate variational parameter updates
     for i = 1:num_iterations
@@ -173,19 +205,46 @@ for t = 1:T
         stepx!(data, marginals)
         stepz!(data, marginals)
         stepθ!(data, marginals)
+        stepη!(data, marginals)
         stepτ!(data, marginals)
     end
 
     # Store current parameterizations of marginals
-    params_x[t+1,1] = unSafeMean(marginals[:x])
-    params_x[t+1,2] = unSafePrecision(marginals[:x])
-    params_z[t+1,1] = unSafeMean(marginals[:z])
-    params_z[t+1,2] = unSafePrecision(marginals[:z])
-    params_θ[t+1,1] = unSafeMean(marginals[:θ])
-    params_θ[t+1,2] = unSafePrecision(marginals[:θ])
-    params_τ[t+1,1] = marginals[:τ].params[:a]
-    params_τ[t+1,2] = marginals[:τ].params[:b]
+    params_x[1][:,t+1] = unsafeMean(marginals[:x_t])
+    params_z[1][:,t+1] = unsafeMean(marginals[:z_t])
+    params_η[1][:,t+1] = unsafeMean(marginals[:η])
+    params_θ[1][:,t+1] = unsafeMean(marginals[:θ])
+    params_x[2][:,:,t+1] = marginals[:x_t].params[:w]
+    params_z[2][:,:,t+1] = marginals[:z_t].params[:w]
+    params_η[2][:,:,t+1] = marginals[:η].params[:w]
+    params_θ[2][:,:,t+1] = marginals[:θ].params[:w]
+    params_τ[1][1,t+1] = marginals[:τ].params[:a]
+    params_τ[2][1,t+1] = marginals[:τ].params[:b]
 
 end
 
-end
+# Estimates of process noise over time
+println(params_τ[1] ./ params_τ[2])
+
+# Extract estimated states
+estimated_states = params_x[1][1,2:end]
+
+"Visualize results"
+
+using Plots
+
+# Plot every n-th time-point to avoid figure size exploding
+n = 10
+
+p1 = Plots.scatter(1:n:T, output[1:n:T],
+                   color="black",
+                   label="output",
+                   markersize=2,
+                   size=(1600,800),
+                   xlabel="time (t)",
+                   ylabel="response")
+Plots.plot!(1:n:T, estimated_states[1:n:T],
+            color="red",
+            linewidth=1,
+            label="estimated")
+Plots.savefig(p1, "viz/estimated_states01.png")
