@@ -1,33 +1,33 @@
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCOutNPPPPP)
+                      :name          => VariationalARXOutNPPPPP)
 
 
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCIn1PNPPPP)
+                      :name          => VariationalARXIn1PNPPPP)
 
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCIn2PPNPPP)
+                      :name          => VariationalARXIn2PPNPPP)
 
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCIn3PPPNPP)
+                      :name          => VariationalARXIn3PPPNPP)
 
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution),
-                      :name          => VariationalARCIn4PPPPNP)
+                      :name          => VariationalARXIn4PPPPNP)
 
-@naiveVariationalRule(:node_type     => AutoregressiveControl,
+@naiveVariationalRule(:node_type     => AutoregressiveX,
                       :outbound_type => Message{Gamma},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing),
-                      :name          => VariationalARCIn5PPPPPN)
+                      :name          => VariationalARXIn5PPPPPN)
 
 # # Structured updates
 #

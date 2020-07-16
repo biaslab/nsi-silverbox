@@ -4,20 +4,23 @@ import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
 import SpecialFunctions: polygamma, digamma
-export AutoregressiveControlNL, ARCNL, averageEnergy, slug
+export NAutoregressiveX, NARX, averageEnergy, slug
 
 """
 Description:
 
     A Gaussian mixture with mean-precision parameterization:
 
-    f(y, θ, x, η, u, γ) = 𝒩(out| A(θ,x) + cηu, V(γ)),
+    f(y, θ, x, η, u, γ) = 𝒩(y | A(θ,x) + B(η)u, V(γ)),
 
     where A(θ,x) = Sx + cg(x,θ)|
 
           S = | 0  …  0 | , c = | 1 |  for AR-order M
               | I_M-1 0 |       | . |
                                 | 0 |
+
+        and B(η) = | η |
+                   | 0 |
 
 Interfaces:
 
@@ -30,17 +33,17 @@ Interfaces:
 
 Construction:
 
-    AutoregressiveControlNL(out, θ, in, η, u, γ, g=Function, id=:some_id)
+    NAutoregressiveX(y, θ, x, η, u, γ, g=Function, id=:some_id)
 """
 
-mutable struct AutoregressiveControlNL <: SoftFactor
+mutable struct NAutoregressiveX <: SoftFactor
     id::Symbol
     interfaces::Vector{Interface}
     i::Dict{Symbol,Interface}
 
     g::Function # Scalar function between autoregression coefficients and state variable
 
-    function AutoregressiveControlNL(y, θ, x, η, u, γ; g::Function=x->x, id=generateId(AutoregressiveControlNL))
+    function NAutoregressiveX(y, θ, x, η, u, γ; g::Function=x->x, id=generateId(NAutoregressiveX))
         @ensureVariables(y, x, θ, η, u, γ)
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
@@ -54,29 +57,31 @@ mutable struct AutoregressiveControlNL <: SoftFactor
     end
 end
 
-slug(::Type{AutoregressiveControlNL}) = "ARCNL"
+slug(::Type{NAutoregressiveX}) = "NARX"
 
-function averageEnergy(::Type{AutoregressiveControlNL},
+function averageEnergy(::Type{NAutoregressiveX},
                        marg_y::ProbabilityDistribution{Multivariate},
                        marg_x::ProbabilityDistribution{Multivariate},
                        marg_θ::ProbabilityDistribution{Multivariate},
                        marg_η::ProbabilityDistribution{Univariate},
                        marg_u::ProbabilityDistribution{Univariate},
                        marg_γ::ProbabilityDistribution{Univariate})
+
+    error("not implemented yet")
+
     mθ, Vθ = unsafeMeanCov(marg_θ)
     my, Vy = unsafeMeanCov(marg_y)
     mx, Vx = unsafeMeanCov(marg_x)
     mη, Vη = unsafeMeanCov(marg_η)
     mu, Vu = unsafeMeanCov(marg_u)
     mγ = unsafeMean(marg_γ)
-    error("not implemented yet")
 
     -0.5*(unsafeLogMean(marg_γ)) +
     0.5*log(2*pi) + 0.5*mγ*(Vy[1]+(my[1])^2 - 2*mθ'*mx*my[1] +
     tr(Vθ*Vx) + mx'*Vθ*mx + mθ'*(Vx + mx*mx')*mθ)
 end
 
-function averageEnergy(::Type{AutoregressiveControlNL},
+function averageEnergy(::Type{NAutoregressiveX},
                        marg_y_x::ProbabilityDistribution{Multivariate},
                        marg_θ::ProbabilityDistribution{Multivariate},
                        marg_η::ProbabilityDistribution{Univariate},

@@ -3,12 +3,12 @@ import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType
 import Zygote: gradient
 include("util.jl")
 
-export ruleVariationalARCNLOutNPPPPP,
-       ruleVariationalARCNLIn1PNPPPP,
-       ruleVariationalARCNLIn2PPNPPP,
-       ruleVariationalARCNLIn3PPPNPP,
-	   ruleVariationalARCNLIn4PPPPNP,
-	   ruleVariationalARCNLIn5PPPPPN
+export ruleVariationalNARXOutNPPPPP,
+       ruleVariationalNARXIn1PNPPPP,
+       ruleVariationalNARXIn2PPNPPP,
+       ruleVariationalNARXIn3PPPNPP,
+	   ruleVariationalNARXIn4PPPPNP,
+	   ruleVariationalNARXIn5PPPPPN
        # ruleSVariationalARCOutNPPP,
        # ruleSVariationalARCIn1PNPP,
        # ruleSVariationalARCIn2PPNP,
@@ -39,12 +39,12 @@ function hardcoded_gradient(mx::Array{Float64,1}, mθ::Array{Float64,1})
 	return Jx, Jθ
 end
 
-function ruleVariationalARCNLOutNPPPPP(marg_y :: Nothing,
-                                       marg_x :: ProbabilityDistribution{Multivariate},
-                                       marg_θ :: ProbabilityDistribution{Multivariate},
-                                       marg_η :: ProbabilityDistribution{Univariate},
-                                       marg_u :: ProbabilityDistribution{Univariate},
-                                       marg_γ :: ProbabilityDistribution{Univariate})
+function ruleVariationalNARXOutNPPPPP(marg_y :: Nothing,
+                                      marg_x :: ProbabilityDistribution{Multivariate},
+                                      marg_θ :: ProbabilityDistribution{Multivariate},
+                                      marg_η :: ProbabilityDistribution{Univariate},
+                                      marg_u :: ProbabilityDistribution{Univariate},
+                                      marg_γ :: ProbabilityDistribution{Univariate})
 
     # Expectations of incoming marginal beliefs
     mx = unsafeMean(marg_x)
@@ -71,12 +71,12 @@ function ruleVariationalARCNLOutNPPPPP(marg_y :: Nothing,
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCNLIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivariate},
-                                       marg_x :: Nothing,
-                                       marg_θ :: ProbabilityDistribution{Multivariate},
-                                       marg_η :: ProbabilityDistribution{Univariate},
-                                       marg_u :: ProbabilityDistribution{Univariate},
-                                       marg_γ :: ProbabilityDistribution{Univariate})
+function ruleVariationalNARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivariate},
+                                      marg_x :: Nothing,
+                                      marg_θ :: ProbabilityDistribution{Multivariate},
+                                      marg_η :: ProbabilityDistribution{Univariate},
+                                      marg_u :: ProbabilityDistribution{Univariate},
+                                      marg_γ :: ProbabilityDistribution{Univariate})
 
     # Expectations of marginal beliefs
     my = unsafeMean(marg_y)
@@ -108,12 +108,12 @@ function ruleVariationalARCNLIn1PNPPPP(marg_y :: ProbabilityDistribution{Multiva
     return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCNLIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivariate},
-                                       marg_x :: ProbabilityDistribution{Multivariate},
-                                       marg_θ :: Nothing,
-							  	       marg_η :: ProbabilityDistribution{Univariate},
-								       marg_u :: ProbabilityDistribution{Univariate},
-                                       marg_γ :: ProbabilityDistribution{Univariate})
+function ruleVariationalNARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivariate},
+                                      marg_x :: ProbabilityDistribution{Multivariate},
+                                      marg_θ :: Nothing,
+							  	      marg_η :: ProbabilityDistribution{Univariate},
+								      marg_u :: ProbabilityDistribution{Univariate},
+                                      marg_γ :: ProbabilityDistribution{Univariate})
 
 
 	# Expectations of marginal beliefs
@@ -146,12 +146,12 @@ function ruleVariationalARCNLIn2PPNPPP(marg_y :: ProbabilityDistribution{Multiva
     return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCNLIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivariate},
-                                       marg_x :: ProbabilityDistribution{Multivariate},
-                                       marg_θ :: ProbabilityDistribution{Multivariate},
-								       marg_η :: Nothing,
-								       marg_u :: ProbabilityDistribution{Univariate},
-                                       marg_γ :: ProbabilityDistribution{Univariate})
+function ruleVariationalNARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivariate},
+                                      marg_x :: ProbabilityDistribution{Multivariate},
+                                      marg_θ :: ProbabilityDistribution{Multivariate},
+								      marg_η :: Nothing,
+								      marg_u :: ProbabilityDistribution{Univariate},
+                                      marg_γ :: ProbabilityDistribution{Univariate})
 
  	# Expectations of marginal beliefs
 	mθ = unsafeMean(marg_θ)
@@ -179,12 +179,12 @@ function ruleVariationalARCNLIn3PPPNPP(marg_y :: ProbabilityDistribution{Multiva
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCNLIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivariate},
-                                       marg_x :: ProbabilityDistribution{Multivariate},
-                                       marg_θ :: ProbabilityDistribution{Multivariate},
-							  	       marg_η :: ProbabilityDistribution{Univariate},
-								       marg_u :: Nothing,
-                                       marg_γ :: ProbabilityDistribution{Univariate})
+function ruleVariationalNARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivariate},
+                                      marg_x :: ProbabilityDistribution{Multivariate},
+                                      marg_θ :: ProbabilityDistribution{Multivariate},
+							  	      marg_η :: ProbabilityDistribution{Univariate},
+								      marg_u :: Nothing,
+                                      marg_γ :: ProbabilityDistribution{Univariate})
 
  	# Expectations of marginal beliefs
 	mθ = unsafeMean(marg_θ)
@@ -212,12 +212,12 @@ function ruleVariationalARCNLIn4PPPPNP(marg_y :: ProbabilityDistribution{Multiva
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCNLIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivariate},
-                                       marg_x :: ProbabilityDistribution{Multivariate},
-                                       marg_θ :: ProbabilityDistribution{Multivariate},
-							  	       marg_η :: ProbabilityDistribution{Univariate},
-								       marg_u :: ProbabilityDistribution{Univariate},
-                                       marg_γ :: Nothing)
+function ruleVariationalNARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivariate},
+                                      marg_x :: ProbabilityDistribution{Multivariate},
+                                      marg_θ :: ProbabilityDistribution{Multivariate},
+							  	      marg_η :: ProbabilityDistribution{Univariate},
+								      marg_u :: ProbabilityDistribution{Univariate},
+                                      marg_γ :: Nothing)
 
     # Expectations of marginal beliefs
 	mθ = unsafeMean(marg_θ)

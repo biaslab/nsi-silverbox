@@ -2,16 +2,16 @@ import LinearAlgebra: I, Hermitian, tr
 import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType
 include("util.jl")
 
-export ruleVariationalARCOutNPPPPP,
-       ruleVariationalARCIn1PNPPPP,
-       ruleVariationalARCIn2PPNPPP,
-       ruleVariationalARCIn3PPPNPP,
-	   ruleVariationalARCIn4PPPPNP,
-	   ruleVariationalARCIn5PPPPPN
-       # ruleSVariationalARCOutNPPP,
-       # ruleSVariationalARCIn1PNPP,
-       # ruleSVariationalARCIn2PPNP,
-       # ruleSVariationalARCIn3PPPN,
+export ruleVariationalARXOutNPPPPP,
+       ruleVariationalARXIn1PNPPPP,
+       ruleVariationalARXIn2PPNPPP,
+       ruleVariationalARXIn3PPPNPP,
+	   ruleVariationalARXIn4PPPPNP,
+	   ruleVariationalARXIn5PPPPPN
+       # ruleSVariationalARXOutNPPP,
+       # ruleSVariationalARXIn1PNPP,
+       # ruleSVariationalARXIn2PPNP,
+       # ruleSVariationalARXIn3PPPN,
        # ruleMGaussianMeanVarianceGGGD
 
 global order = Nothing
@@ -25,7 +25,7 @@ function defineOrder(dim)
     S = shift(order)
 end
 
-function ruleVariationalARCOutNPPPPP(marg_y :: Nothing,
+function ruleVariationalARXOutNPPPPP(marg_y :: Nothing,
                                      marg_x :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: ProbabilityDistribution{Multivariate},
                                      marg_η :: ProbabilityDistribution{Univariate},
@@ -52,7 +52,7 @@ function ruleVariationalARCOutNPPPPP(marg_y :: Nothing,
     Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_x :: Nothing,
                                      marg_θ :: ProbabilityDistribution{Multivariate},
                                      marg_η :: ProbabilityDistribution{Univariate},
@@ -83,7 +83,7 @@ function ruleVariationalARCIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivari
     Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_x :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: Nothing,
 								     marg_η :: ProbabilityDistribution{Univariate},
@@ -112,7 +112,7 @@ function ruleVariationalARCIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivari
     Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_x :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: ProbabilityDistribution{Multivariate},
 								     marg_η :: Nothing,
@@ -143,7 +143,7 @@ function ruleVariationalARCIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivari
     Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_x :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: ProbabilityDistribution{Multivariate},
 								     marg_η :: ProbabilityDistribution{Univariate},
@@ -174,7 +174,7 @@ function ruleVariationalARCIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivari
     Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
 end
 
-function ruleVariationalARCIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_x :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: ProbabilityDistribution{Multivariate},
 								     marg_η :: ProbabilityDistribution{Univariate},
@@ -199,7 +199,7 @@ function ruleVariationalARCIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivari
     Message(Gamma, a=a, b=B/2)
 end
 
-# function ruleVariationalARCIn2PPNP(marg_y :: ProbabilityDistribution{V, PointMass},
+# function ruleVariationalARXIn2PPNP(marg_y :: ProbabilityDistribution{V, PointMass},
 #                                    marg_x :: ProbabilityDistribution{Multivariate, PointMass},
 #                                    marg_θ :: Nothing,
 #                                    marg_γ :: ProbabilityDistribution{Univariate}) where V<:VariateType
@@ -213,7 +213,7 @@ end
 #     Message(Multivariate, GaussianWeightedMeanPrecision, xi=xi, w=W)
 # end
 #
-# function ruleVariationalARCIn3PPPN(marg_y :: ProbabilityDistribution{V, PointMass},
+# function ruleVariationalARXIn3PPPN(marg_y :: ProbabilityDistribution{V, PointMass},
 #                                    marg_x :: ProbabilityDistribution{Multivariate, PointMass},
 #                                    marg_θ :: ProbabilityDistribution{Multivariate},
 #                                    marg_γ :: Nothing) where V<:VariateType
@@ -227,7 +227,7 @@ end
 #
 # # No copying behavior (classical AR)
 #
-# function ruleVariationalARCIn2PPNP(marg_y :: ProbabilityDistribution{Univariate, PointMass},
+# function ruleVariationalARXIn2PPNP(marg_y :: ProbabilityDistribution{Univariate, PointMass},
 #                                    marg_x :: ProbabilityDistribution{Multivariate, PointMass},
 #                                    marg_θ :: Nothing,
 #                                    marg_γ :: ProbabilityDistribution{Univariate})
@@ -241,7 +241,7 @@ end
 #     Message(Multivariate, GaussianWeightedMeanPrecision, xi=xi, w=W)
 # end
 #
-# function ruleVariationalARCIn3PPPN(marg_y :: ProbabilityDistribution{Univariate, PointMass},
+# function ruleVariationalARXIn3PPPN(marg_y :: ProbabilityDistribution{Univariate, PointMass},
 #                                    marg_x :: ProbabilityDistribution{Multivariate, PointMass},
 #                                    marg_θ :: ProbabilityDistribution{Multivariate},
 #                                    marg_γ :: Nothing)
