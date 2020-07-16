@@ -69,16 +69,6 @@ function averageEnergy(::Type{NAutoregressiveX},
 
     error("not implemented yet")
 
-    mθ, Vθ = unsafeMeanCov(marg_θ)
-    my, Vy = unsafeMeanCov(marg_y)
-    mx, Vx = unsafeMeanCov(marg_x)
-    mη, Vη = unsafeMeanCov(marg_η)
-    mu, Vu = unsafeMeanCov(marg_u)
-    mγ = unsafeMean(marg_γ)
-
-    -0.5*(unsafeLogMean(marg_γ)) +
-    0.5*log(2*pi) + 0.5*mγ*(Vy[1]+(my[1])^2 - 2*mθ'*mx*my[1] +
-    tr(Vθ*Vx) + mx'*Vθ*mx + mθ'*(Vx + mx*mx')*mθ)
 end
 
 function averageEnergy(::Type{NAutoregressiveX},
@@ -90,14 +80,4 @@ function averageEnergy(::Type{NAutoregressiveX},
 
     error("not implemented yet")
 
-    mθ, Vθ = unsafeMeanCov(marg_θ)
-    order = length(mθ)
-    myx, Vyx = unsafeMeanCov(marg_y_x)
-    mx, Vx = myx[order+1:end], Matrix(Vyx[order+1:2*order, order+1:2*order])
-    my1, Vy1 = myx[1:order][1], Matrix(Vyx[1:order, 1:order])[1]
-    mγ = unsafeMean(marg_γ)
-
-    -0.5*(unsafeLogMean(marg_γ)) +
-    0.5*log(2*pi) + 0.5*mγ*(Vy1+my1^2 - 2*mθ'*(Vyx[1,order+1:2*order] + mx*my1) +
-    tr(Vθ*Vx) + mx'*Vθ*mx + mθ'*(Vx + mx*mx')*mθ)
 end
