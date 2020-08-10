@@ -38,7 +38,24 @@ function ruleVariationalNARXOutNPPPPP(marg_y :: Nothing,
                                       marg_u :: ProbabilityDistribution{Univariate},
                                       marg_τ :: ProbabilityDistribution{Univariate})
 
-	return Message(vague(GaussianWeightedMeanPrecision))
+	# Extract moments of beliefs
+	mθ = unsafeMean(marg_θ)
+	mx = unsafeMean(marg_x)
+	mz = unsafeMean(marg_z)
+	mu = unsafeMean(marg_u)
+	mτ = unsafeMean(marg_τ)
+	Vθ = unsafeCov(marg_θ)
+
+	# Set order
+	M = dims(marg_x)
+	N = dims(marg_z)
+	defineOrder(M,N)
+
+	# Evaluate f at mθ
+	fθ = f(mθ, mx, mu, mz)
+
+	# Set outgoing message
+	return Message(Univariate, GaussianMeanPrecision, m=fθ, w=mτ)
 end
 
 function ruleVariationalNARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Univariate},

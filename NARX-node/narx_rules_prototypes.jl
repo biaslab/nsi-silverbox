@@ -1,5 +1,5 @@
 @naiveVariationalRule(:node_type     => NAutoregressiveX,
-                      :outbound_type => Message{GaussianWeightedMeanPrecision},
+                      :outbound_type => Message{GaussianMeanPrecision},
                       :inbound_types => (Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
                       :name          => VariationalNARXOutNPPPPP)
 
