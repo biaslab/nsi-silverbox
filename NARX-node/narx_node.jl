@@ -3,37 +3,33 @@ using LinearAlgebra
 import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!,
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
-import SpecialFunctions: polygamma, digamma
 export NAutoregressiveX, NARX, averageEnergy, slug
 
 """
 Description:
 
-    A Gaussian mixture with mean-precision parameterization:
+    A nonlinear autoregressive function with exogeneous input
 
-    f(y, θ, x, η, u, γ) = 𝒩(y | A(θ,x) + B(η)u, V(γ)),
+    y_t = f(y_t-1, …, y_t-M, u_t, u_t-1, …, u_t-N) + e_t
 
-    where A(θ,x) = Sx + cg(x,θ)|
+    where M is the auto-regression order of observations and N of inputs.
+    Concatenate previous observations: x_t-1 = [y_t-1, …, y_t-M]' and
+    previous inputs z_t-1 = [u_t-1, …, u_t-N]'.
 
-          S = | 0  …  0 | , c = | 1 |  for AR-order M
-              | I_M-1 0 |       | . |
-                                | 0 |
-
-        and B(η) = | η |
-                   | 0 |
+    Assume y_t, x_t-1, z_t-1 and u_t are observed and e_t ~ N(0, τ^-1).
 
 Interfaces:
 
-    1. y (output vector)
-    2. θ (autoregression coefficients)
-    3. x (input vector)
-    4. η (control coefficients)
-    5. u (control)
-    6. γ (precision)
+    1. y (output)
+    2. θ (function coefficients)
+    3. x (previous observations vector)
+    4. z (previous inputs vector)
+    5. u (input)
+    6. τ (precision)
 
 Construction:
 
-    NAutoregressiveX(y, θ, x, η, u, γ, g=Function, id=:some_id)
+    NAutoregressiveX(y, θ, x, z, u, τ, g=Function, id=:some_id)
 """
 
 mutable struct NAutoregressiveX <: SoftFactor
@@ -43,16 +39,16 @@ mutable struct NAutoregressiveX <: SoftFactor
 
     g::Function # Scalar function between autoregression coefficients and state variable
 
-    function NAutoregressiveX(y, θ, x, η, u, γ; g::Function=x->x, id=generateId(NAutoregressiveX))
-        @ensureVariables(y, x, θ, η, u, γ)
+    function NAutoregressiveX(y, θ, x, z, u, τ; g::Function=x->sum(x), id=generateId(NAutoregressiveX))
+        @ensureVariables(y, θ, x, z, u, τ)
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
         self.i[:y] = self.interfaces[1] = associate!(Interface(self), y)
-        self.i[:x] = self.interfaces[2] = associate!(Interface(self), x)
-        self.i[:θ] = self.interfaces[3] = associate!(Interface(self), θ)
-        self.i[:η] = self.interfaces[4] = associate!(Interface(self), η)
+        self.i[:θ] = self.interfaces[2] = associate!(Interface(self), θ)
+        self.i[:x] = self.interfaces[3] = associate!(Interface(self), x)
+        self.i[:z] = self.interfaces[4] = associate!(Interface(self), z)
         self.i[:u] = self.interfaces[5] = associate!(Interface(self), u)
-        self.i[:γ] = self.interfaces[6] = associate!(Interface(self), γ)
+        self.i[:τ] = self.interfaces[6] = associate!(Interface(self), τ)
         return self
     end
 end
@@ -60,23 +56,12 @@ end
 slug(::Type{NAutoregressiveX}) = "NARX"
 
 function averageEnergy(::Type{NAutoregressiveX},
-                       marg_y::ProbabilityDistribution{Multivariate},
+                       marg_y::ProbabilityDistribution{Univariate},
+                       marg_θ::ProbabilityDistribution{Multivariate},
                        marg_x::ProbabilityDistribution{Multivariate},
-                       marg_θ::ProbabilityDistribution{Multivariate},
-                       marg_η::ProbabilityDistribution{Univariate},
+                       marg_z::ProbabilityDistribution{Multivariate},
                        marg_u::ProbabilityDistribution{Univariate},
-                       marg_γ::ProbabilityDistribution{Univariate})
-
-    error("not implemented yet")
-
-end
-
-function averageEnergy(::Type{NAutoregressiveX},
-                       marg_y_x::ProbabilityDistribution{Multivariate},
-                       marg_θ::ProbabilityDistribution{Multivariate},
-                       marg_η::ProbabilityDistribution{Univariate},
-                       marg_u::ProbabilityDistribution{Univariate},
-                       marg_γ::ProbabilityDistribution{Univariate})
+                       marg_τ::ProbabilityDistribution{Univariate})
 
     error("not implemented yet")
 
