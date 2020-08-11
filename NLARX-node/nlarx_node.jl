@@ -4,12 +4,14 @@ import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
 import SpecialFunctions: polygamma, digamma
-export AutoregressiveX, ARX, averageEnergy, slug
+export NLatentAutoregressiveX, NLARX, averageEnergy, slug
 
 """
 Description:
 
-    A Gaussian mixture with mean-precision parameterization:
+    A Nonlinear Latent Autoregressive model with eXogenous input (NLARX).
+
+    The node function is a Gaussian with mean-precision parameterization:
 
     f(y, θ, x, η, u, γ) = 𝒩(y | A(θ)x + B(η)u, V(γ)),
 
@@ -29,15 +31,17 @@ Interfaces:
 
 Construction:
 
-    AutoregressiveX(y, θ, x, η, u, γ, id=:some_id)
+    NLatentAutoregressiveX(y, θ, x, η, u, γ, id=:some_id)
 """
 
-mutable struct AutoregressiveX <: SoftFactor
+mutable struct NLatentAutoregressiveX <: SoftFactor
     id::Symbol
     interfaces::Vector{Interface}
     i::Dict{Symbol,Interface}
 
-    function AutoregressiveX(y, θ, x, η, u, γ; id=generateId(AutoregressiveX))
+    g::Function # Scalar function between autoregression coefficients and state variable
+
+    function NLatentAutoregressiveX(y, θ, x, η, u, γ; g::Function=x->x, id=generateId(NLatentAutoregressiveX))
         @ensureVariables(y, x, θ, η, u, γ)
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}())
         addNode!(currentGraph(), self)
@@ -51,22 +55,11 @@ mutable struct AutoregressiveX <: SoftFactor
     end
 end
 
-slug(::Type{AutoregressiveX}) = "ARX"
+slug(::Type{NLatentAutoregressiveX}) = "NLARX"
 
-function averageEnergy(::Type{AutoregressiveX},
+function averageEnergy(::Type{NLatentAutoregressiveX},
                        marg_y::ProbabilityDistribution{Multivariate},
                        marg_x::ProbabilityDistribution{Multivariate},
-                       marg_θ::ProbabilityDistribution{Multivariate},
-                       marg_η::ProbabilityDistribution{Univariate},
-                       marg_u::ProbabilityDistribution{Univariate},
-                       marg_γ::ProbabilityDistribution{Univariate})
-
-    error("not implemented yet")
-
-end
-
-function averageEnergy(::Type{AutoregressiveX},
-                       marg_y_x::ProbabilityDistribution{Multivariate},
                        marg_θ::ProbabilityDistribution{Multivariate},
                        marg_η::ProbabilityDistribution{Univariate},
                        marg_u::ProbabilityDistribution{Univariate},

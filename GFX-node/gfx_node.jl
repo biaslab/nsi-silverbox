@@ -97,28 +97,6 @@ function averageEnergy(::Type{GeneralisedFilterX},
                        marg_u::ProbabilityDistribution{Univariate},
                        marg_γ::ProbabilityDistribution{Univariate})
 
+    #TODO
     error("not implemented yet")
-
-end
-
-function averageEnergy(::Type{GeneralisedFilterX},
-                       marg_y_x::ProbabilityDistribution{Multivariate},
-                       marg_θ::ProbabilityDistribution{Multivariate},
-                       marg_η::ProbabilityDistribution{Univariate},
-                       marg_u::ProbabilityDistribution{Univariate},
-                       marg_γ::ProbabilityDistribution{Univariate})
-
-    error("not implemented yet")
-
-end
-
-function averageEnergy(::Type{GeneralisedFilterX},
-                       marg_y::ProbabilityDistribution{Multivariate},
-                       marg_x::ProbabilityDistribution{Multivariate},
-                       marg_θ::ProbabilityDistribution{Multivariate},
-                       marg_η::ProbabilityDistribution{Univariate},
-                       marg_u::ProbabilityDistribution{Univariate})
-
-    error("not implemented yet")
-
 end

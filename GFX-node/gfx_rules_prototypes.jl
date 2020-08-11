@@ -24,32 +24,32 @@
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCNLOutNPPPPP)
+                      :name          => VariationalGFXOutNPPPPP)
 
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCNLIn1PNPPPP)
+                      :name          => VariationalGFXIn1PNPPPP)
 
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCNLIn2PPNPPP)
+                      :name          => VariationalGFXIn2PPNPPP)
 
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution, ProbabilityDistribution),
-                      :name          => VariationalARCNLIn3PPPNPP)
+                      :name          => VariationalGFXIn3PPPNPP)
 
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{GaussianWeightedMeanPrecision},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing, ProbabilityDistribution),
-                      :name          => VariationalARCNLIn4PPPPNP)
+                      :name          => VariationalGFXIn4PPPPNP)
 
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
                       :outbound_type => Message{Gamma},
                       :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing),
-                      :name          => VariationalARCNLIn5PPPPPN)
+                      :name          => VariationalGFXIn5PPPPPN)
 
 # Structured updates
-# todo
+#TODO
