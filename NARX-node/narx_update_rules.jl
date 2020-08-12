@@ -1,5 +1,7 @@
 import LinearAlgebra: I, Hermitian, tr, inv
-import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType
+import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType,
+	collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
+using Zygote
 include("util.jl")
 
 export ruleVariationalNARXOutNPPPPP,
@@ -9,29 +11,23 @@ export ruleVariationalNARXOutNPPPPP,
 	   ruleVariationalNARXIn4PPPPNP,
 	   ruleVariationalNARXIn5PPPPPN
 
+# Autoregression orders
 order_out = Nothing
 order_inp = Nothing
 
+# Approximating point for Taylor series
+approxθ = Nothing
+
 function defineOrder(M::Int64, N::Int64)
-    global order_out, order_inp
+    global order_out, order_inp, approxθ
     order_out = M
 	order_inp = N
+	approxθ = zeros(M+N+1,)
 end
 
-# Approximating point for Taylor exp
-mθ_ = zeros(3,)
 
-function f(θ::Array{Float64,1}, x, u, z)
-	"Hard-coded nonlinearity (todo: g as an input argument to rule)"
-	return θ[1:order_out]'*x + θ[order_out+1]*u + θ[order_out+2:end]'*z
-end
-
-function hardcoded_Jacobian(mθ::Array{Float64,1}, x, u, z)
-	"Hard-coded gradient of nonlinearity (todo: g as an input argument to rule)"
-	return Array([x; u; z])
-end
-
-function ruleVariationalNARXOutNPPPPP(marg_y :: Nothing,
+function ruleVariationalNARXOutNPPPPP(g :: Function,
+									  marg_y :: Nothing,
 									  marg_θ :: ProbabilityDistribution{Multivariate},
                                       marg_x :: ProbabilityDistribution{Multivariate},
                                       marg_z :: ProbabilityDistribution{Multivariate},
@@ -52,13 +48,14 @@ function ruleVariationalNARXOutNPPPPP(marg_y :: Nothing,
 	defineOrder(M,N)
 
 	# Evaluate f at mθ
-	fθ = f(mθ, mx, mu, mz)
+	fθ = g(mθ, mx, mu, mz)
 
 	# Set outgoing message
 	return Message(Univariate, GaussianMeanPrecision, m=fθ, w=mτ)
 end
 
-function ruleVariationalNARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Univariate},
+function ruleVariationalNARXIn1PNPPPP(g :: Function,
+									  marg_y :: ProbabilityDistribution{Univariate},
                                       marg_θ :: Nothing,
 									  marg_x :: ProbabilityDistribution{Multivariate},
                                       marg_z :: ProbabilityDistribution{Multivariate},
@@ -78,20 +75,22 @@ function ruleVariationalNARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Univaria
 	defineOrder(M,N)
 
 	# Jacobian of f evaluated at mθ
-	Jθ = hardcoded_Jacobian(mθ_, mx, mu, mz)
+	# Jθ = Jacobian(g, [mθ_, mx, mu, mz])
+	Jθ = Zygote.gradient(g, approxθ, mx, mu, mz)[1]
 
 	# Update parameters
 	Φ = mτ*Jθ*Jθ'
 	ϕ = mτ*my*Jθ
 
 	# Update approximating point
-	global mθ_ = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
+	global approxθ = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
 
 	# Set message
     return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Univariate},
+function ruleVariationalNARXIn2PPNPPP(g :: Function,
+									  marg_y :: ProbabilityDistribution{Univariate},
 									  marg_θ :: ProbabilityDistribution{Multivariate},
 									  marg_x :: Nothing,
 							  	      marg_z :: ProbabilityDistribution{Multivariate},
@@ -101,7 +100,8 @@ function ruleVariationalNARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Univaria
     return Message(vague(GaussianWeightedMeanPrecision, 2))
 end
 
-function ruleVariationalNARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Univariate},
+function ruleVariationalNARXIn3PPPNPP(g :: Function,
+									  marg_y :: ProbabilityDistribution{Univariate},
 									  marg_θ :: ProbabilityDistribution{Multivariate},
 									  marg_x :: ProbabilityDistribution{Multivariate},
 							  	      marg_z :: Nothing,
@@ -111,7 +111,8 @@ function ruleVariationalNARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Univaria
     return Message(vague(GaussianWeightedMeanPrecision, 2))
 end
 
-function ruleVariationalNARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Univariate},
+function ruleVariationalNARXIn4PPPPNP(g :: Function,
+									  marg_y :: ProbabilityDistribution{Univariate},
 									  marg_θ :: ProbabilityDistribution{Multivariate},
 									  marg_x :: ProbabilityDistribution{Multivariate},
 							  	      marg_z :: ProbabilityDistribution{Multivariate},
@@ -121,7 +122,8 @@ function ruleVariationalNARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Univaria
     return Message(vague(GaussianWeightedMeanPrecision))
 end
 
-function ruleVariationalNARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Univariate},
+function ruleVariationalNARXIn5PPPPPN(g :: Function,
+									  marg_y :: ProbabilityDistribution{Univariate},
 									  marg_θ :: ProbabilityDistribution{Multivariate},
 									  marg_x :: ProbabilityDistribution{Multivariate},
 							  	      marg_z :: ProbabilityDistribution{Multivariate},
@@ -142,10 +144,10 @@ function ruleVariationalNARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Univaria
 	defineOrder(M,N)
 
 	# Evaluate f at mθ
-	fθ = f(mθ, mx, mu, mz)
+	fθ = g(mθ, mx, mu, mz)
 
-	# Jacobian of f evaluated at mθ
-	Jθ = hardcoded_Jacobian(mθ, mx, mu, mz)
+	# Gradient of f evaluated at mθ
+	Jθ = Zygote.gradient(g, mθ, mx, mu, mz)[1]
 
 	# Update parameters
 	a = 3/2.
@@ -153,4 +155,32 @@ function ruleVariationalNARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Univaria
 
 	# Set message
     return Message(Univariate, Gamma, a=a, b=b)
+end
+
+
+function collectNaiveVariationalNodeInbounds(node::NAutoregressiveX, entry::ScheduleEntry)
+	inbounds = Any[]
+
+	# Push function (and inverse) to calling signature
+	# These functions needs to be defined in the scope of the user
+	push!(inbounds, Dict{Symbol, Any}(:g => node.g,
+									  :keyword => false))
+
+    target_to_marginal_entry = currentInferenceAlgorithm().target_to_marginal_entry
+
+    for node_interface in entry.interface.node.interfaces
+        inbound_interface = ultimatePartner(node_interface)
+        if node_interface === entry.interface
+            # Ignore marginal of outbound edge
+            push!(inbounds, nothing)
+        elseif (inbound_interface != nothing) && isa(inbound_interface.node, Clamp)
+            # Hard-code marginal of constant node in schedule
+            push!(inbounds, assembleClamp!(inbound_interface.node, ProbabilityDistribution))
+        else
+            # Collect entry from marginal schedule
+            push!(inbounds, target_to_marginal_entry[node_interface.edge.variable])
+        end
+    end
+
+    return inbounds
 end

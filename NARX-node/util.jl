@@ -1,6 +1,6 @@
 "Utility functions"
 
-# using Zygote
+using Zygote
 
 function wMatrix(γ, order)
     mW = huge*Matrix{Float64}(I, order, order)
@@ -40,7 +40,7 @@ function Jacobian(F, x)
     T = eltype(y)
     j = Array{T, 2}(undef, n, m)
     for i in 1:n
-        j[i, :] .= gradient(x -> F(x)[i], x)[1]
+        j[i, :] .= Zygote.gradient(x -> F(x)[i], x)[1]
     end
     return j
 end

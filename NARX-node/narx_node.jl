@@ -3,7 +3,7 @@ using LinearAlgebra
 import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!,
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
-export NAutoregressiveX, NARX, averageEnergy, slug
+export NAutoregressiveX, NARX
 
 """
 Description:
@@ -39,7 +39,7 @@ mutable struct NAutoregressiveX <: SoftFactor
 
     g::Function # Scalar function between autoregression coefficients and state variable
 
-    function NAutoregressiveX(y, θ, x, z, u, τ; g::Function=x->sum(x), id=generateId(NAutoregressiveX))
+    function NAutoregressiveX(y, θ, x, z, u, τ; g::Function, id=generateId(NAutoregressiveX))
         @ensureVariables(y, θ, x, z, u, τ)
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
