@@ -8,7 +8,7 @@ export NAutoregressiveX, NARX
 """
 Description:
 
-    A nonlinear autoregressive function with exogeneous input
+    A Nonlinear Autoregressive model with eXogeneous input (NARX)
 
     y_t = f(y_t-1, …, y_t-M, u_t, u_t-1, …, u_t-N) + e_t
 
@@ -29,7 +29,7 @@ Interfaces:
 
 Construction:
 
-    NAutoregressiveX(y, θ, x, z, u, τ, g=Function, id=:some_id)
+    NAutoregressiveX(y, θ, x, z, u, τ, g=f, id=:some_id)
 """
 
 mutable struct NAutoregressiveX <: SoftFactor

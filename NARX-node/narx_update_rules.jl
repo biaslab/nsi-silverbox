@@ -1,6 +1,6 @@
 import LinearAlgebra: I, Hermitian, tr, inv
 import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType,
-	collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
+				  collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
 using Zygote
 include("util.jl")
 
@@ -19,9 +19,13 @@ order_inp = Nothing
 approxθ = Nothing
 
 function defineOrder(M::Int64, N::Int64)
-    global order_out, order_inp, approxθ
+	global order_out, order_inp, approxθ
+
+	# Autoregression order
     order_out = M
 	order_inp = N
+
+	# Initialize approximating point
 	approxθ = zeros(M+N+1,)
 end
 
@@ -75,7 +79,6 @@ function ruleVariationalNARXIn1PNPPPP(g :: Function,
 	defineOrder(M,N)
 
 	# Jacobian of f evaluated at mθ
-	# Jθ = Jacobian(g, [mθ_, mx, mu, mz])
 	Jθ = Zygote.gradient(g, approxθ, mx, mu, mz)[1]
 
 	# Update parameters
@@ -161,10 +164,8 @@ end
 function collectNaiveVariationalNodeInbounds(node::NAutoregressiveX, entry::ScheduleEntry)
 	inbounds = Any[]
 
-	# Push function (and inverse) to calling signature
-	# These functions needs to be defined in the scope of the user
-	push!(inbounds, Dict{Symbol, Any}(:g => node.g,
-									  :keyword => false))
+	# Push function to calling signature (g needs to be defined in user scope)
+	push!(inbounds, Dict{Symbol, Any}(:g => node.g, :keyword => false))
 
     target_to_marginal_entry = currentInferenceAlgorithm().target_to_marginal_entry
 

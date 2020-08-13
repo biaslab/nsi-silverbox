@@ -1,6 +1,7 @@
 import LinearAlgebra: I, Hermitian, tr
-import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType
-# import Zygote: gradient
+import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType,
+				  collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
+using Zygote
 include("util.jl")
 
 export ruleVariationalNLARXOutNPPPPP,
@@ -10,31 +11,37 @@ export ruleVariationalNLARXOutNPPPPP,
 	   ruleVariationalNLARXIn4PPPPNP,
 	   ruleVariationalNLARXIn5PPPPPN
 
+# Autoregression order and bookkeeping matrices
 order = Nothing
-c = Nothing
+s = Nothing
 S = Nothing
-mx_ = zeros(2,)
-mθ_ = zeros(3,)
+
+# Approximating points
+approxx = Nothing
+approxθ = Nothing
 
 function defineOrder(dim::Int64)
-    global order, c, S
+    global order, s, S
+
+	# Set autoregression order
     order = dim
-    c = uvector(order)
+
+	# Set bookkeeping matrices
+    s = uvector(order)
     S = shift(order)
 end
 
-function g(x::Array{Float64,1}, θ::Array{Float64,1})
-	"Hard-coded nonlinearity (todo: g as an input argument to rule)"
-	return θ[1]*x[1] + θ[2]*x[1]^3 + θ[3]*x[2]
+function initApproxPoints(order::Int64, num_coeffs::Int64)
+	global approxx, approxθ
+
+	# Set approximating points
+	approxx = zeros(order,)
+	approxθ = zeros(num_coeffs,)
 end
 
-function hardcoded_gradient(mx::Array{Float64,1}, mθ::Array{Float64,1})
-	Jx = Array([mθ[1] + mθ[2]*3*mx[1]^2, mθ[3]])
-	Jθ = Array([mx[1], mx[1]^3, mx[2]])
-	return Jx, Jθ
-end
 
-function ruleVariationalNLARXOutNPPPPP(marg_y :: Nothing,
+function ruleVariationalNLARXOutNPPPPP(g :: Function,
+									   marg_y :: Nothing,
                                        marg_x :: ProbabilityDistribution{Multivariate},
                                        marg_θ :: ProbabilityDistribution{Multivariate},
                                        marg_η :: ProbabilityDistribution{Univariate},
@@ -48,25 +55,28 @@ function ruleVariationalNLARXOutNPPPPP(marg_y :: Nothing,
     mu = unsafeMean(marg_u)
     mγ = unsafeMean(marg_γ)
 
-	# Update global approximating point
-	global mx_ = mx
-	global mθ_ = mθ
-
     # Check order
-    order == Nothing ? defineOrder(length(mx)) : order != length(mx) ?
-                       defineOrder(length(mx)) : order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
+
+	# Update approximating points
+	global approxx = mx
+	global approxθ = mθ
 
     # Map transition noise to matrix
     mW = wMatrix(mγ, order)
 
     # Parameters of outgoing message
-    z = mW*(S*mx + c*g(mx, mθ) + c*mη*mu)
-	D = mW
+	Φ = mW
+    ϕ = mW*(S*mx + s*g([mθ; mx]) + s*mη*mu)
 
-	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
+	# Set outgoing message
+	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNLARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalNLARXIn1PNPPPP(g :: Function,
+									   marg_y :: ProbabilityDistribution{Multivariate},
                                        marg_x :: Nothing,
                                        marg_θ :: ProbabilityDistribution{Multivariate},
                                        marg_η :: ProbabilityDistribution{Univariate},
@@ -81,29 +91,40 @@ function ruleVariationalNLARXIn1PNPPPP(marg_y :: ProbabilityDistribution{Multiva
     mu = unsafeMean(marg_u)
     mγ = unsafeMean(marg_γ)
 
-    # Check order
-    order == Nothing ? defineOrder(length(my)) : order != length(my) ?
-                       defineOrder(length(my)) : order
+	# Check order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
 
-    # Map transition noise to matrix
-    mW = wMatrix(mγ, order)
+	# Check approximating points
+	if approxx == Nothing
+		error("Approximating point for x not initialized")
+	end
+
+	# Extract number of coefficients
+	num_coeffs = dims(marg_θ)
 
 	# Jacobians of nonlinearity
-	# Jx, Jθ = gradient(g, mx_, mθ)
-	Jx, Jθ = hardcoded_gradient(mx_, mθ)
+	J = Jacobian(g, [mθ; approxx])
+	Jθ = J[1:num_coeffs]
+	Jx = J[num_coeffs+1:end]
+
+	# Map transition noise to matrix
+	mW = wMatrix(mγ, order)
 
     # Parameters of outgoing message
-    D = (S + c*Jx')'*mW*(S + c*Jx')
-    z = (S + c*Jx')'*mW*(my - c*mη*mu)
+    Φ = (S + s*Jx')'*mW*(S + s*Jx')
+    ϕ = (S + s*Jx')'*mW*(my - s*mη*mu)
 
 	# Update global approximating point
-	global mx_ = cholinv(D)*z
-	global mθ_ = mθ
+	global approxx = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
+	global approxθ = mθ
 
-    return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
+    return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNLARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalNLARXIn2PPNPPP(g :: Function,
+									   marg_y :: ProbabilityDistribution{Multivariate},
                                        marg_x :: ProbabilityDistribution{Multivariate},
                                        marg_θ :: Nothing,
 							  	       marg_η :: ProbabilityDistribution{Univariate},
@@ -120,28 +141,39 @@ function ruleVariationalNLARXIn2PPNPPP(marg_y :: ProbabilityDistribution{Multiva
 	mγ = unsafeMean(marg_γ)
 
 	# Check order
-    order == Nothing ? defineOrder(length(my)) : order != length(my) ?
-                       defineOrder(length(my)) : order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
 
-    # Map transition noise to matrix
-    mW = wMatrix(mγ, order)
+	# Check approximating points
+	if approxθ == Nothing
+		error("Approximating point for θ not initialized")
+	end
+
+	# Extract number of coefficients
+	num_coeffs = length(approxθ)
 
 	# Jacobians of nonlinearity
-	# Jx, Jθ = gradient(g, mx, mθ_)
-	Jx, Jθ = hardcoded_gradient(mx, mθ_)
+	J = Jacobian(g, [approxθ; mx])
+	Jθ = J[1:num_coeffs]
+	Jx = J[num_coeffs+1:end]
+
+	# Map transition noise to matrix
+	mW = wMatrix(mγ, order)
 
     # Parameters of outgoing message
-    D = mγ*(Jθ*Jθ')
-    z = Jθ*c'*mW*(my - c*mη*mu - c*(g(mx,mθ_) - Jθ'*mθ_))
+    Φ = mγ*(Jθ*Jθ')
+    ϕ = Jθ*s'*mW*(my - s*mη*mu - s*(g([approxθ; mx]) - Jθ'*approxθ))
 
 	# Update global approximating point
-	global mx_ = mx
-	global mθ_ = cholinv(D)*z
+	global approxx = mx
+	global approxθ = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
 
-    return Message(Multivariate, GaussianWeightedMeanPrecision, xi=z, w=D)
+    return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNLARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalNLARXIn3PPPNPP(g :: Function,
+									   marg_y :: ProbabilityDistribution{Multivariate},
                                        marg_x :: ProbabilityDistribution{Multivariate},
                                        marg_θ :: ProbabilityDistribution{Multivariate},
 								       marg_η :: Nothing,
@@ -157,24 +189,26 @@ function ruleVariationalNLARXIn3PPPNPP(marg_y :: ProbabilityDistribution{Multiva
 	mγ = unsafeMean(marg_γ)
 
 	# Update global approximating point
-	global mx_ = mx
-	global mθ_ = mθ
+	global approxx = mx
+	global approxθ = mθ
 
 	# Check order
-    order == Nothing ? defineOrder(length(my)) : order != length(my) ?
-                       defineOrder(length(my)) : order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
 
     # Map transition noise to matrix
     mW = wMatrix(mγ, order)
 
 	# Parameters of outgoing message
-	D = mγ*(mu^2 + vu)
-    z = (mu*c')*mW*(my - (S*mx + c*g(mx,mθ)))
+	Φ = mγ*(mu^2 + vu)
+    ϕ = (mu*s')*mW*(my - (S*mx + s*g([mθ; mx])))
 
-	return Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
+	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNLARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalNLARXIn4PPPPNP(g :: Function,
+									   marg_y :: ProbabilityDistribution{Multivariate},
                                        marg_x :: ProbabilityDistribution{Multivariate},
                                        marg_θ :: ProbabilityDistribution{Multivariate},
 							  	       marg_η :: ProbabilityDistribution{Univariate},
@@ -190,24 +224,26 @@ function ruleVariationalNLARXIn4PPPPNP(marg_y :: ProbabilityDistribution{Multiva
 	mγ = unsafeMean(marg_γ)
 
 	# Update global approximating point
-	global mx_ = mx
-	global mθ_ = mθ
+	global approxx = mx
+	global approxθ = mθ
 
 	# Check order
-    order == Nothing ? defineOrder(length(my)) : order != length(my) ?
-                       defineOrder(length(my)) : order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
 
     # Map transition noise to matrix
     mW = wMatrix(mγ, order)
 
 	# Parameters of outgoing message
-	D = mγ*(mη^2 + vη)
-    z = (mη*c')*mW*(my - (S*mx + c*g(mx,mθ)))
+	Φ = mγ*(mη^2 + vη)
+    ϕ = (mη*s')*mW*(my - (S*mx + s*g([mθ; mx])))
 
-	return Message(Univariate, GaussianWeightedMeanPrecision, xi=z, w=D)
+	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalNLARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Multivariate},
+function ruleVariationalNLARXIn5PPPPPN(g :: Function,
+									   marg_y :: ProbabilityDistribution{Multivariate},
                                        marg_x :: ProbabilityDistribution{Multivariate},
                                        marg_θ :: ProbabilityDistribution{Multivariate},
 							  	       marg_η :: ProbabilityDistribution{Univariate},
@@ -227,30 +263,60 @@ function ruleVariationalNLARXIn5PPPPPN(marg_y :: ProbabilityDistribution{Multiva
 	vu = unsafeCov(marg_u)
 
 	# Update global approximating point
-	global mx_ = mx
-	global mθ_ = mθ
+	global approxx = mx
+	global approxθ = mθ
+
+	# Extract number of coefficients
+	num_coeffs = dims(marg_θ)
 
 	# Jacobians of nonlinearity
-	# Jx, Jθ = gradient(g, mx, mθ)
-	Jx, Jθ = hardcoded_gradient(mx, mθ)
+	J = Jacobian(g, [mθ; mx])
+	Jθ = J[1:num_coeffs]
+	Jx = J[num_coeffs+1:end]
 
 	# Convenience variables
-	Aθx = S*mx + c*g(mx,mθ)
+	Aθx = S*mx + s*g([mθ; mx])
 
 	# Intermediate terms
-	tmp1 = (my*my' + Vy)[1,1]
-	tmp2 = -(Aθx*my')[1,1]
-	tmp3 = -((c*mη*mu)*my')[1,1]
-	tmp4 = -(my*Aθx')[1,1]
-	tmp5 = (mx'*S'*S*mx)[1,1] + (S*Vx*S')[1,1] + g(mx,mθ)^2 + Jx'*Vx*Jx + Jθ'*Vθ*Jθ
-	tmp6 = ((c*mη*mu)*Aθx')[1,1]
-	tmp7 = -(my*(c*mη*mu)')[1,1]
-	tmp8 = (Aθx*(c*mη*mu)')[1,1]
-	tmp9 = (mu^2 + vu)*(mη^2 + vη)
+	term1 = (my*my' + Vy)[1,1]
+	term2 = -(Aθx*my')[1,1]
+	term3 = -((s*mη*mu)*my')[1,1]
+	term4 = -(my*Aθx')[1,1]
+	term5 = (mx'*S'*S*mx)[1,1] + (S*Vx*S')[1,1] + g([mθ; mx])^2 + Jx'*Vx*Jx + Jθ'*Vθ*Jθ
+	term6 = ((s*mη*mu)*Aθx')[1,1]
+	term7 = -(my*(s*mη*mu)')[1,1]
+	term8 = (Aθx*(s*mη*mu)')[1,1]
+	term9 = (mu^2 + vu)*(mη^2 + vη)
 
 	# Parameters of outgoing message
 	a = 3/2
-    B = tmp1 + tmp2 + tmp3 + tmp4 + tmp5 + tmp6 + tmp7 + tmp8 + tmp9
+    B = (term1 + term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9)/2
 
-	return Message(Gamma, a=a, b=B/2)
+	return Message(Gamma, a=a, b=B)
+end
+
+
+function collectNaiveVariationalNodeInbounds(node::NLatentAutoregressiveX, entry::ScheduleEntry)
+	inbounds = Any[]
+
+	# Push function to calling signature (g needs to be defined in user scope)
+	push!(inbounds, Dict{Symbol, Any}(:g => node.g, :keyword => false))
+
+    target_to_marginal_entry = currentInferenceAlgorithm().target_to_marginal_entry
+
+    for node_interface in entry.interface.node.interfaces
+        inbound_interface = ultimatePartner(node_interface)
+        if node_interface === entry.interface
+            # Ignore marginal of outbound edge
+            push!(inbounds, nothing)
+        elseif (inbound_interface != nothing) && isa(inbound_interface.node, Clamp)
+            # Hard-code marginal of constant node in schedule
+            push!(inbounds, assembleClamp!(inbound_interface.node, ProbabilityDistribution))
+        else
+            # Collect entry from marginal schedule
+            push!(inbounds, target_to_marginal_entry[node_interface.edge.variable])
+        end
+    end
+
+    return inbounds
 end

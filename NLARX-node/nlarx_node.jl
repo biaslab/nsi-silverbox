@@ -3,8 +3,7 @@ using LinearAlgebra
 import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!,
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
-import SpecialFunctions: polygamma, digamma
-export NLatentAutoregressiveX, NLARX, averageEnergy, slug
+export NLatentAutoregressiveX, NLARX
 
 """
 Description:
@@ -13,12 +12,13 @@ Description:
 
     The node function is a Gaussian with mean-precision parameterization:
 
-    f(y, θ, x, η, u, γ) = 𝒩(y | A(θ)x + B(η)u, V(γ)),
+    f(y, θ, x, η, u, γ) = 𝒩(y | A(θ,x) + B(η)u, V(γ)),
 
-    where A(θ) = | θ_1  …  θ_M | , B(η) = | η | ,
-                 | I_M-1	 0 |          | 0 |
-
-        for AR-order M.
+    where A(θ,x) is a nonlinear state update, consisting of a data shift
+    operation Sx and a nonlinear function of coefficients θ and the previous
+    state x; s*g(θ,x) where S = |0 .. 0; I .. 0| and s = [1 .. 0]'. B(η)u a
+    scaled linear additive control and V(γ) a covariance matrix based on
+    process precision γ.
 
 Interfaces:
 
@@ -31,7 +31,7 @@ Interfaces:
 
 Construction:
 
-    NLatentAutoregressiveX(y, θ, x, η, u, γ, id=:some_id)
+    NLatentAutoregressiveX(y, θ, x, η, u, γ, g=g, id=:some_id)
 """
 
 mutable struct NLatentAutoregressiveX <: SoftFactor
@@ -41,9 +41,9 @@ mutable struct NLatentAutoregressiveX <: SoftFactor
 
     g::Function # Scalar function between autoregression coefficients and state variable
 
-    function NLatentAutoregressiveX(y, θ, x, η, u, γ; g::Function=x->x, id=generateId(NLatentAutoregressiveX))
+    function NLatentAutoregressiveX(y, θ, x, η, u, γ; g::Function, id=generateId(NLatentAutoregressiveX))
         @ensureVariables(y, x, θ, η, u, γ)
-        self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}())
+        self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
         self.i[:y] = self.interfaces[1] = associate!(Interface(self), y)
         self.i[:x] = self.interfaces[2] = associate!(Interface(self), x)
