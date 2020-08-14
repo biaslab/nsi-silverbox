@@ -24,9 +24,6 @@ function defineOrder(M::Int64, N::Int64)
 	# Autoregression order
     order_out = M
 	order_inp = N
-
-	# Initialize approximating point
-	approxθ = zeros(M+N+1,)
 end
 
 
@@ -50,6 +47,9 @@ function ruleVariationalNARXOutNPPPPP(g :: Function,
 	M = dims(marg_x)
 	N = dims(marg_z)
 	defineOrder(M,N)
+
+	# Update approximating point
+	global approxθ = mθ
 
 	# Evaluate f at mθ
 	fθ = g(mθ, mx, mu, mz)
@@ -145,6 +145,9 @@ function ruleVariationalNARXIn5PPPPPN(g :: Function,
 	M = dims(marg_x)
 	N = dims(marg_z)
 	defineOrder(M,N)
+
+	# Update approximating point
+	global approxθ = mθ
 
 	# Evaluate f at mθ
 	fθ = g(mθ, mx, mu, mz)
