@@ -4,7 +4,7 @@ import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!
                   averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
                   differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
 import SpecialFunctions: polygamma, digamma
-export GeneralisedFilterX, GFX, averageEnergy, slug
+export GeneralisedFilterX, GFX
 
 """
 Description:
@@ -13,13 +13,14 @@ Description:
 
     1. A Gaussian mixture with mean-precision parameterization:
 
-    𝒩(y | A(θ,x) + B(η,u), V(γ)),
+    𝒩(y | A(θ)x + B(η)u, V(γ)),
 
-    where A(x) = Sx + cg(x, θ), B(η,u) = c η u, and V(γ) = γI
+    where A(x) = (S + cθ')x, B(η) = ηc, and
 
-    with S = | 1  …  Δt | ,  c = | 1 |
-             |    …  Δt |        | . |
-             | 0      1 |        | 0 |
+    with S = | 1  …  Δt | ,  c = | 0 | ,  V(γ) = | ϵ  …  … 0  |
+             | .  …  Δt |        | . |           | 0  ϵ  … 0  |
+             | .  …   . |        | . |           | .  .  … 0  |
+             | 0  …   1 |        | 1 |           | 0  …  … γ⁻¹|
 
     Interfaces:
         1. y (output vector)
@@ -30,13 +31,13 @@ Description:
         6. γ (precision)
 
     Construction:
-        GeneralisedFilterX(y, θ, x, η, u, γ, g=Function, id=:some_id)
+        GeneralisedFilterX(y, θ, x, η, u, γ, id=:some_id)
 
     2. A deterministic state transition
 
-        δ(y - (A(θ,x) + B(η,u))
+        δ(y - (A(θ)x + B(η)u))
 
-        where A(x) = Sx + cg(x, θ) and B(η,u) = c η u
+        where A(x) = (S + cθ')x, B(η) = ηc, and
 
         with S = | 1  …  Δt | ,  c = | 1 |
                  |    …  Δt |        | . |
@@ -50,7 +51,7 @@ Description:
         5. u (exogenous input)
 
     Construction:
-        GeneralisedFilterX(y, θ, x, η, u, g=Function, id=:some_id)
+        GeneralisedFilterX(y, θ, x, η, u, id=:some_id)
 
 """
 
@@ -59,9 +60,10 @@ mutable struct GeneralisedFilterX <: SoftFactor
     interfaces::Vector{Interface}
     i::Dict{Symbol,Interface}
 
-    g::Function # Scalar function between autoregression coefficients and state variable
+    # Sampling time
+    Δt::Float
 
-    function GeneralisedFilterX(y, θ, x, η, u, γ; g::Function=x->x, Δt::Float=1., id=generateId(GeneralisedFilterX))
+    function GeneralisedFilterX(y, θ, x, η, u, γ; Δt::Float=1., id=generateId(GeneralisedFilterX))
         @ensureVariables(y, x, θ, η, u, γ)
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
@@ -74,7 +76,7 @@ mutable struct GeneralisedFilterX <: SoftFactor
         return self
     end
 
-    function GeneralisedFilterX(y, θ, x, η, u; g::Function=x->x, Δt::Float=1., id=generateId(GeneralisedFilterX))
+    function GeneralisedFilterX(y, θ, x, η, u; Δt::Float=1., id=generateId(GeneralisedFilterX))
         @ensureVariables(y, x, θ, η, u)
         self = new(id, Array{Interface}(undef, 5), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
@@ -96,6 +98,17 @@ function averageEnergy(::Type{GeneralisedFilterX},
                        marg_η::ProbabilityDistribution{Univariate},
                        marg_u::ProbabilityDistribution{Univariate},
                        marg_γ::ProbabilityDistribution{Univariate})
+
+    #TODO
+    error("not implemented yet")
+end
+
+function averageEnergy(::Type{GeneralisedFilterX},
+                       marg_y::ProbabilityDistribution{Multivariate},
+                       marg_x::ProbabilityDistribution{Multivariate},
+                       marg_θ::ProbabilityDistribution{Multivariate},
+                       marg_η::ProbabilityDistribution{Univariate},
+                       marg_u::ProbabilityDistribution{Univariate})
 
     #TODO
     error("not implemented yet")
