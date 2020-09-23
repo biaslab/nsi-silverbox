@@ -1,8 +1,7 @@
-import LinearAlgebra: I, Hermitian, tr
+import LinearAlgebra: I, Hermitian, tr, pinv
 import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType,
 				  collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
-using Zygote
-include("util.jl")
+import Zygote: gradient
 
 export ruleVariationalNLARXOutNPPPPP,
        ruleVariationalNLARXIn1PNPPPP,
@@ -13,8 +12,8 @@ export ruleVariationalNLARXOutNPPPPP,
 
 # Autoregression order and bookkeeping matrices
 order = Nothing
-s = Nothing
 S = Nothing
+s = Nothing
 
 # Approximating points
 approxx = Nothing
@@ -29,14 +28,6 @@ function defineOrder(dim::Int64)
 	# Set bookkeeping matrices
     s = uvector(order)
     S = shift(order)
-end
-
-function initApproxPoints(order::Int64, num_coeffs::Int64)
-	global approxx, approxθ
-
-	# Set approximating points
-	approxx = zeros(order,)
-	approxθ = zeros(num_coeffs,)
 end
 
 
@@ -69,7 +60,7 @@ function ruleVariationalNLARXOutNPPPPP(g :: Function,
 
     # Parameters of outgoing message
 	Φ = mW
-    ϕ = mW*(S*mx + s*g([mθ; mx]) + s*mη*mu)
+    ϕ = mW*(S*mx + s*g(mθ, mx) + s*mη*mu)
 
 	# Set outgoing message
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
@@ -101,13 +92,8 @@ function ruleVariationalNLARXIn1PNPPPP(g :: Function,
 		error("Approximating point for x not initialized")
 	end
 
-	# Extract number of coefficients
-	num_coeffs = dims(marg_θ)
-
-	# Jacobians of nonlinearity
-	J = Jacobian(g, [mθ; approxx])
-	Jθ = J[1:num_coeffs]
-	Jx = J[num_coeffs+1:end]
+	# Gradient of supplied nonlinear function
+	Jθ, Jx = gradient(g, mθ, approxx)
 
 	# Map transition noise to matrix
 	mW = wMatrix(mγ, order)
@@ -117,7 +103,7 @@ function ruleVariationalNLARXIn1PNPPPP(g :: Function,
     ϕ = (S + s*Jx')'*mW*(my - s*mη*mu)
 
 	# Update global approximating point
-	global approxx = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
+	global approxx = inv(Φ + 1e-6*Matrix{Float64}(I, size(Φ)))*ϕ
 	global approxθ = mθ
 
     return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
@@ -150,24 +136,19 @@ function ruleVariationalNLARXIn2PPNPPP(g :: Function,
 		error("Approximating point for θ not initialized")
 	end
 
-	# Extract number of coefficients
-	num_coeffs = length(approxθ)
-
-	# Jacobians of nonlinearity
-	J = Jacobian(g, [approxθ; mx])
-	Jθ = J[1:num_coeffs]
-	Jx = J[num_coeffs+1:end]
+	# Gradient of supplied nonlinear function
+	Jθ, Jx = gradient(g, approxθ, mx)
 
 	# Map transition noise to matrix
 	mW = wMatrix(mγ, order)
 
     # Parameters of outgoing message
-    Φ = mγ*(Jθ*Jθ')
-    ϕ = Jθ*s'*mW*(my - s*mη*mu - s*(g([approxθ; mx]) - Jθ'*approxθ))
+    Φ = mγ*Jθ*Jθ'
+    ϕ = Jθ*s'*mW*(my - s*mη*mu - s*(g(approxθ, mx) - Jθ'*approxθ))
 
 	# Update global approximating point
 	global approxx = mx
-	global approxθ = inv(Φ + 1e-8*Matrix{Float64}(I, size(Φ)))*ϕ
+	global approxθ = inv(Φ + 1e-6*Matrix{Float64}(I, size(Φ)))*ϕ
 
     return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
@@ -202,7 +183,7 @@ function ruleVariationalNLARXIn3PPPNPP(g :: Function,
 
 	# Parameters of outgoing message
 	Φ = mγ*(mu^2 + vu)
-    ϕ = (mu*s')*mW*(my - (S*mx + s*g([mθ; mx])))
+    ϕ = (mu*s')*mW*(my - (S*mx + s*g(mθ, mx)))
 
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
@@ -237,7 +218,7 @@ function ruleVariationalNLARXIn4PPPPNP(g :: Function,
 
 	# Parameters of outgoing message
 	Φ = mγ*(mη^2 + vη)
-    ϕ = (mη*s')*mW*(my - (S*mx + s*g([mθ; mx])))
+    ϕ = (mη*s')*mW*(my - (S*mx + s*g(mθ, mx)))
 
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
@@ -266,23 +247,23 @@ function ruleVariationalNLARXIn5PPPPPN(g :: Function,
 	global approxx = mx
 	global approxθ = mθ
 
-	# Extract number of coefficients
-	num_coeffs = dims(marg_θ)
+	# Check order
+	if order == Nothing
+		defineOrder(length(mx))
+	end
 
-	# Jacobians of nonlinearity
-	J = Jacobian(g, [mθ; mx])
-	Jθ = J[1:num_coeffs]
-	Jx = J[num_coeffs+1:end]
+	# Gradient of supplied nonlinear function
+	Jθ, Jx = gradient(g, mθ, approxx)
 
 	# Convenience variables
-	Aθx = S*mx + s*g([mθ; mx])
+	Aθx = S*mx + s*g(mθ, mx)
 
 	# Intermediate terms
 	term1 = (my*my' + Vy)[1,1]
 	term2 = -(Aθx*my')[1,1]
 	term3 = -((s*mη*mu)*my')[1,1]
 	term4 = -(my*Aθx')[1,1]
-	term5 = (mx'*S'*S*mx)[1,1] + (S*Vx*S')[1,1] + g([mθ; mx])^2 + Jx'*Vx*Jx + Jθ'*Vθ*Jθ
+	term5 = (mx'*S'*S*mx)[1,1] + (S*Vx*S')[1,1] + g(mθ, mx)^2 + Jx'*Vx*Jx + Jθ'*Vθ*Jθ
 	term6 = ((s*mη*mu)*Aθx')[1,1]
 	term7 = -(my*(s*mη*mu)')[1,1]
 	term8 = (Aθx*(s*mη*mu)')[1,1]

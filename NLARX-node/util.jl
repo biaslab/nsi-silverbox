@@ -1,5 +1,7 @@
 "Utility functions"
 
+using Zygote: gradient
+
 function Jacobian(F, x)
     y = F(x)
     n = length(y)

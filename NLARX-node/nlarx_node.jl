@@ -1,8 +1,11 @@
 using ForneyLab
 using LinearAlgebra
 import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!,
-                  averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
-                  differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
+                  averageEnergy, differentialEntropy, Interface, Variable, slug, ProbabilityDistribution,
+				  unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov,
+				  collectAverageEnergyInbounds, localPosteriorFactorToRegion,
+				  ultimatePartner, posteriorFactor, assembleClamp!
+import SpecialFunctions: polygamma, digamma
 export NLatentAutoregressiveX, NLARX
 
 """
@@ -34,6 +37,7 @@ Construction:
     NLatentAutoregressiveX(y, θ, x, η, u, γ, g=g, id=:some_id)
 """
 
+
 mutable struct NLatentAutoregressiveX <: SoftFactor
     id::Symbol
     interfaces::Vector{Interface}
@@ -43,6 +47,7 @@ mutable struct NLatentAutoregressiveX <: SoftFactor
 
     function NLatentAutoregressiveX(y, θ, x, η, u, γ; g::Function, id=generateId(NLatentAutoregressiveX))
         @ensureVariables(y, x, θ, η, u, γ)
+		global nonlinear_g = g
         self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
         addNode!(currentGraph(), self)
         self.i[:y] = self.interfaces[1] = associate!(Interface(self), y)
@@ -58,6 +63,7 @@ end
 slug(::Type{NLatentAutoregressiveX}) = "NLARX"
 
 function averageEnergy(::Type{NLatentAutoregressiveX},
+					   g::Function,
                        marg_y::ProbabilityDistribution{Multivariate},
                        marg_x::ProbabilityDistribution{Multivariate},
                        marg_θ::ProbabilityDistribution{Multivariate},
@@ -65,6 +71,61 @@ function averageEnergy(::Type{NLatentAutoregressiveX},
                        marg_u::ProbabilityDistribution{Univariate},
                        marg_γ::ProbabilityDistribution{Univariate})
 
-    error("not implemented yet")
+    # Expectations of marginal beliefs
+    my, Vy = unsafeMeanCov(marg_y)
+    mx, Vx = unsafeMeanCov(marg_x)
+    mθ, Vθ = unsafeMeanCov(marg_θ)
+    mη, vη = unsafeMeanCov(marg_η)
+    mu, vu = unsafeMeanCov(marg_u)
+    mγ = unsafeMean(marg_γ)
 
+    # Gradient of supplied nonlinear function
+	Jθ, Jx = gradient(g, mθ, mx)
+
+    # Compute
+    Eg = g(mθ, mx)
+    Eg2 = Eg*Eg' + Jx'*Vx*Jx + Jθ'*Vθ*Jθ
+
+    # Expand square and pre-compute terms
+    sq1 = my[1]^2 + Vy[1,1]
+	sq2 = my[1]*(Eg + mη*mu)
+	sq3 = Eg2 + 2*Eg*mη*mu + (mη^2 + vη)*(mu + vu)
+
+	# Compute average energy
+	AE = 1/2*log(2*π) -1/2*unsafeLogMean(marg_γ) +1/2*mγ*(sq1 -2*sq2 + sq3)
+
+    # correction
+    AE += differentialEntropy(marg_y)
+    marg_y1 = ProbabilityDistribution(Univariate, GaussianMeanVariance, m=my[1], v=Vy[1,1])
+    AE -= differentialEntropy(marg_y1)
+
+    return AE
+end
+
+function collectAverageEnergyInbounds(node::NLatentAutoregressiveX)
+    inbounds = Any[]
+
+	# Push function to calling signature (g needs to be defined in user scope)
+	push!(inbounds, Dict{Symbol, Any}(:g => node.g, :keyword => false))
+
+    local_posterior_factor_to_region = localPosteriorFactorToRegion(node)
+
+    encountered_posterior_factors = Union{PosteriorFactor, Edge}[] # Keep track of encountered posterior factors
+    for node_interface in node.interfaces
+        inbound_interface = ultimatePartner(node_interface)
+        current_posterior_factor = posteriorFactor(node_interface.edge)
+
+        if (inbound_interface != nothing) && isa(inbound_interface.node, Clamp)
+            # Hard-code marginal of constant node in schedule
+            push!(inbounds, assembleClamp!(copy(inbound_interface.node), ProbabilityDistribution)) # Copy Clamp before assembly to prevent overwriting dist_or_msg field
+        elseif !(current_posterior_factor in encountered_posterior_factors)
+            # Collect marginal entry from marginal dictionary (if marginal entry is not already accepted)
+            target = local_posterior_factor_to_region[current_posterior_factor]
+            push!(inbounds, currentInferenceAlgorithm().target_to_marginal_entry[target])
+        end
+
+        push!(encountered_posterior_factors, current_posterior_factor)
+    end
+
+    return inbounds
 end
