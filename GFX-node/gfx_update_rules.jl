@@ -1,7 +1,6 @@
 import LinearAlgebra: I, Bidiagonal, tr
-import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType
+import ForneyLab: unsafeCov, unsafeMean, unsafePrecision, VariateType,
 				  collectNaiveVariationalNodeInbounds, assembleClamp!, ultimatePartner
-import Zygote: gradient
 include("util.jl")
 
 export ruleVariationalGFXOutNPPPPP,
@@ -12,7 +11,7 @@ export ruleVariationalGFXOutNPPPPP,
 	   ruleVariationalGFXIn5PPPPPN
 
 
-function ruleVariationalGFXOutNPPPPP(Δt :: Float,
+function ruleVariationalGFXOutNPPPPP(Δt :: Float64,
 									 marg_y :: Nothing,
 									 marg_θ :: ProbabilityDistribution{Multivariate},
                                      marg_x :: ProbabilityDistribution{Multivariate},
@@ -21,11 +20,11 @@ function ruleVariationalGFXOutNPPPPP(Δt :: Float,
                                      marg_τ :: ProbabilityDistribution{Univariate})
 
 	# Extract moments of beliefs
-	mθ,Vθ = unsafeMeanCov(marg_θ)
-	mx,Vx = unsafeMeanCov(marg_x)
-	mη,Vη = unsafeMeanCov(marg_η)
-	mu,Vu = unsafeMeanCov(marg_u)
-	mτ,Vτ = unsafeMeanCov(marg_τ)
+	mθ = unsafeMean(marg_θ)
+	mx = unsafeMean(marg_x)
+	mη = unsafeMean(marg_η)
+	mu = unsafeMean(marg_u)
+	mτ = unsafeMean(marg_τ)
 
 	# Set order
 	order = dims(marg_θ)
@@ -46,10 +45,10 @@ function ruleVariationalGFXOutNPPPPP(Δt :: Float,
 	Φ = mW
 
 	# Set outgoing message
-	return Message(Univariate, GaussianMeanPrecision, m=ϕ, w=Φ)
+	return Message(Multivariate, GaussianMeanPrecision, m=ϕ, w=Φ)
 end
 
-function ruleVariationalGFXIn1PNPPPP(Δt :: Float,
+function ruleVariationalGFXIn1PNPPPP(Δt :: Float64,
 									 marg_y :: ProbabilityDistribution{Multivariate},
                                      marg_θ :: Nothing,
 									 marg_x :: ProbabilityDistribution{Multivariate},
@@ -62,10 +61,10 @@ function ruleVariationalGFXIn1PNPPPP(Δt :: Float,
 	mx,Vx = unsafeMeanCov(marg_x)
 	mη,Vη = unsafeMeanCov(marg_η)
 	mu,Vu = unsafeMeanCov(marg_u)
-	mτ,Vτ = unsafeMeanCov(marg_τ)
+	mτ = unsafeMean(marg_τ)
 
 	# Set order
-	order = dims(marg_θ)
+	order = dims(marg_x)
 
 	# Define helper matrices
 	S = Bidiagonal(ones(order,), Δt.*ones(order-1,), :U)
@@ -82,7 +81,7 @@ function ruleVariationalGFXIn1PNPPPP(Δt :: Float,
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalGFXIn2PPNPPP(Δt :: Float,
+function ruleVariationalGFXIn2PPNPPP(Δt :: Float64,
 									 marg_y :: ProbabilityDistribution{Multivariate},
 									 marg_θ :: ProbabilityDistribution{Multivariate},
 									 marg_x :: Nothing,
@@ -95,7 +94,7 @@ function ruleVariationalGFXIn2PPNPPP(Δt :: Float,
 	mθ,Vθ = unsafeMeanCov(marg_θ)
 	mη,Vη = unsafeMeanCov(marg_η)
 	mu,Vu = unsafeMeanCov(marg_u)
-	mτ,Vτ = unsafeMeanCov(marg_τ)
+	mτ = unsafeMean(marg_τ)
 
 	# Set order
 	order = dims(marg_θ)
@@ -112,13 +111,13 @@ function ruleVariationalGFXIn2PPNPPP(Δt :: Float,
 
 	# Set parameters
 	ϕ = EA*mW*(my - s*mη*mu)
-	Φ = mW*(EA'*EA + Vθ)
+	Φ = EA'*mW*EA + mW*Vθ
 
 	# Set outgoing message
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalGFXIn3PPPNPP(Δt :: Float,
+function ruleVariationalGFXIn3PPPNPP(Δt :: Float64,
 									 marg_y :: ProbabilityDistribution{Multivariate},
 									 marg_θ :: ProbabilityDistribution{Multivariate},
 									 marg_x :: ProbabilityDistribution{Multivariate},
@@ -129,9 +128,9 @@ function ruleVariationalGFXIn3PPPNPP(Δt :: Float,
 	# Extract moments of beliefs
 	my,Vy = unsafeMeanCov(marg_y)
 	mθ,Vθ = unsafeMeanCov(marg_θ)
-	mx,Vx = unsafeMeanCov(marg_x)
+	mx = unsafeMean(marg_x)
 	mu,Vu = unsafeMeanCov(marg_u)
-	mτ,Vτ = unsafeMeanCov(marg_τ)
+	mτ = unsafeMean(marg_τ)
 
 	# Set order
 	order = dims(marg_θ)
@@ -154,7 +153,7 @@ function ruleVariationalGFXIn3PPPNPP(Δt :: Float,
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalGFXIn4PPPPNP(Δt :: Float,
+function ruleVariationalGFXIn4PPPPNP(Δt :: Float64,
 									 marg_y :: ProbabilityDistribution{Multivariate},
 									 marg_θ :: ProbabilityDistribution{Multivariate},
 									 marg_x :: ProbabilityDistribution{Multivariate},
@@ -168,7 +167,7 @@ function ruleVariationalGFXIn4PPPPNP(Δt :: Float,
 	mθ,Vθ = unsafeMeanCov(marg_θ)
 	mx,Vx = unsafeMeanCov(marg_x)
 	mη,Vη = unsafeMeanCov(marg_η)
-	mτ,Vτ = unsafeMeanCov(marg_τ)
+	mτ = unsafeMean(marg_τ)
 
 	# Set order
 	order = dims(marg_θ)
@@ -191,7 +190,7 @@ function ruleVariationalGFXIn4PPPPNP(Δt :: Float,
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
 end
 
-function ruleVariationalGFXIn5PPPPPN(Δt :: Float,
+function ruleVariationalGFXIn5PPPPPN(Δt :: Float64,
 									 marg_y :: ProbabilityDistribution{Multivariate},
 									 marg_θ :: ProbabilityDistribution{Multivariate},
 									 marg_x :: ProbabilityDistribution{Multivariate},
@@ -213,9 +212,6 @@ function ruleVariationalGFXIn5PPPPPN(Δt :: Float,
 	# Define helper matrices
 	S = Bidiagonal(ones(order,), Δt.*ones(order-1,), :U)
 	s = zeros(order,); s[end] = 1.
-
-	# Cast precision to matrix
-	mW = wMatrix(mτ, order)
 	
 	# Compute expected values
 	EA = S + s*mθ'

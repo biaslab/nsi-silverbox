@@ -1,9 +1,10 @@
 using ForneyLab
 using LinearAlgebra
 import ForneyLab: SoftFactor, @ensureVariables, generateId, addNode!, associate!,
-                  averageEnergy, Interface, Variable, slug, ProbabilityDistribution,
-                  differentialEntropy, unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov
-import SpecialFunctions: polygamma, digamma
+                  averageEnergy, differentialEntropy, Interface, Variable, slug, ProbabilityDistribution,
+				  unsafeLogMean, unsafeMean, unsafeCov, unsafePrecision, unsafeMeanCov,
+				  collectAverageEnergyInbounds, localPosteriorFactorToRegion,
+				  ultimatePartner, posteriorFactor, assembleClamp!
 export GeneralisedFilterX, GFX
 
 """
@@ -31,7 +32,7 @@ Description:
         6. γ (precision)
 
     Construction:
-        GeneralisedFilterX(y, θ, x, η, u, γ, id=:some_id)
+        GeneralisedFilterX(y, θ, x, η, u, γ, Δt=1., id=:some_id)
 
     2. A deterministic state transition
 
@@ -51,7 +52,7 @@ Description:
         5. u (exogenous input)
 
     Construction:
-        GeneralisedFilterX(y, θ, x, η, u, id=:some_id)
+        GeneralisedFilterX(y, θ, x, η, u, Δt=1., id=:some_id)
 
 """
 
@@ -61,11 +62,11 @@ mutable struct GeneralisedFilterX <: SoftFactor
     i::Dict{Symbol,Interface}
 
     # Sampling time
-    Δt::Float
+    Δt::Float64
 
-    function GeneralisedFilterX(y, θ, x, η, u, γ; Δt::Float=1., id=generateId(GeneralisedFilterX))
+    function GeneralisedFilterX(y, θ, x, η, u, γ; Δt::Float64=1., id=generateId(GeneralisedFilterX))
         @ensureVariables(y, x, θ, η, u, γ)
-        self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), g)
+        self = new(id, Array{Interface}(undef, 6), Dict{Symbol,Interface}(), Δt)
         addNode!(currentGraph(), self)
         self.i[:y] = self.interfaces[1] = associate!(Interface(self), y)
         self.i[:x] = self.interfaces[2] = associate!(Interface(self), x)
@@ -76,9 +77,9 @@ mutable struct GeneralisedFilterX <: SoftFactor
         return self
     end
 
-    function GeneralisedFilterX(y, θ, x, η, u; Δt::Float=1., id=generateId(GeneralisedFilterX))
+    function GeneralisedFilterX(y, θ, x, η, u; Δt::Float64=1., id=generateId(GeneralisedFilterX))
         @ensureVariables(y, x, θ, η, u)
-        self = new(id, Array{Interface}(undef, 5), Dict{Symbol,Interface}(), g)
+        self = new(id, Array{Interface}(undef, 5), Dict{Symbol,Interface}(), Δt)
         addNode!(currentGraph(), self)
         self.i[:y] = self.interfaces[1] = associate!(Interface(self), y)
         self.i[:x] = self.interfaces[2] = associate!(Interface(self), x)

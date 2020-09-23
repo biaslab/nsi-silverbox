@@ -22,7 +22,7 @@
 
 # Mean-field variational update rules
 @naiveVariationalRule(:node_type     => GeneralisedFilterX,
-                      :outbound_type => Message{GaussianWeightedMeanPrecision},
+                      :outbound_type => Message{GaussianMeanPrecision},
                       :inbound_types => (Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
                       :name          => VariationalGFXOutNPPPPP)
 
