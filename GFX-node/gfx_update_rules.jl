@@ -18,7 +18,7 @@ function ruleVariationalGFXOutNPPPPP(Δt :: Float64,
                                      marg_η :: ProbabilityDistribution{Univariate},
                                      marg_u :: ProbabilityDistribution{Univariate},
                                      marg_τ :: ProbabilityDistribution{Univariate})
-
+	
 	# Extract moments of beliefs
 	mθ = unsafeMean(marg_θ)
 	mx = unsafeMean(marg_x)
@@ -43,6 +43,8 @@ function ruleVariationalGFXOutNPPPPP(Δt :: Float64,
 	# Set parameters
 	ϕ = EA*mx + EB*mu
 	Φ = mW
+	
+	println("mz_t = "*string(inv(Φ)*ϕ))
 
 	# Set outgoing message
 	return Message(Multivariate, GaussianMeanPrecision, m=ϕ, w=Φ)
@@ -74,8 +76,10 @@ function ruleVariationalGFXIn1PNPPPP(Δt :: Float64,
 	mW = wMatrix(mτ, order)
 
 	# Set parameters
-	ϕ = mx*s'*mW*(my - s*mη*mu) - mW*S'*Vx*s
+	ϕ = mx*s'*mW*(my - s*mη*mu) - (mx*mx' + Vx)*S'*mW*s
 	Φ = mτ*(mx*mx' + Vx)
+
+	println("mθ = "*string(inv(Φ)*ϕ))
 
 	# Set outgoing message
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
@@ -112,6 +116,9 @@ function ruleVariationalGFXIn2PPNPPP(Δt :: Float64,
 	# Set parameters
 	ϕ = EA*mW*(my - s*mη*mu)
 	Φ = EA'*mW*EA + mW*Vθ
+	# Φ = mW*(EA'*EA + Vθ)
+
+	println("mz_tmin1 = "*string(inv(Φ)*ϕ))
 
 	# Set outgoing message
 	return Message(Multivariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
@@ -148,6 +155,8 @@ function ruleVariationalGFXIn3PPPNPP(Δt :: Float64,
 	# Set parameters
 	ϕ = mu'*s'*mW*(my - EA*mx)
 	Φ = mτ*(mu*mu' + Vu)
+
+	println("mη = "*string(inv(Φ)*ϕ))
 
 	# Set outgoing message
 	return Message(Univariate, GaussianWeightedMeanPrecision, xi=ϕ, w=Φ)
@@ -217,9 +226,21 @@ function ruleVariationalGFXIn5PPPPPN(Δt :: Float64,
 	EA = S + s*mθ'
 	EB = s*mη
 
+	t1 = my[order]^2 + Vy[order,order]
+	t2 = -my[order]*(EA*mx)[order]
+	t3 = -my[order]*(EB*mu)[order]
+	t4 = -(EA*mx)[order]*my[order]
+	t5 = mx'*(EA'*EA + Vθ)*mx + tr((EA'*EA + Vθ)*Vx)
+	t6 = (EA*mx)[order]*(EB*mu)[order]
+	t7 = -(EB*mu)[order]*my[order]
+	t8 = (EB*mu)[order]*(EA*mx)[order]
+	t9 = mη'*s'*(mu*mu' + Vu)*s*mη + s'*(mu*mu' + Vu)*s*Vη
+
 	# Set parameters
 	a = 3/2
-	b = my[order] + Vy[order,order] -2*my[order]*(EA*mx)[order] -2*(EA*mx)[order]*(EB*mu)[order] -2*my[order]*(EB*mu)[order] + mx'*(EA'*EA + Vθ)*mx + tr((EA'*EA + Vθ)*Vx) + (mη^2 + Vη)*(mu^2 + Vu)
+	b = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + t9
+
+	println("mγ = "*string(a/b))
 
 	# Set outgoing message
 	return Message(Univariate, Gamma, a=a, b=b)
