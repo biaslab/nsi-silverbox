@@ -6,7 +6,6 @@ The goal is infer parameters in a model that can predict future output, given ne
 
 - Nonlinear Autoregressive model with eXogenous input (NARX)
 - Nonlinear Latent Autoregressive model with eXogenous input (NLARX)
-- Nonlinear Output Errror (NOE)
 - Generalised Filter with eXogenous input (GFX)
 
 These models are standard in the control systems community. Typically, least-squares minimization or some other form of frequentist estimation is used for inference. In this repo, we employ variational Bayesian inference (Free Energy Minimisation). It has some advantages, such as computational efficiency, robustness to overfitting and access to posterior probablity estimates. But perhaps it won't perform as well as Gaussian process regression or deep neural networks. We investigate that question here.
