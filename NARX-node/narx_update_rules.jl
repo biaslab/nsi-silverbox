@@ -16,7 +16,7 @@ order_out = Nothing
 order_inp = Nothing
 
 # Approximating point for Taylor series
-approxθ = Nothing
+approxθ = 0.0
 
 function defineOrder(M::Int64, N::Int64)
 	global order_out, order_inp, approxθ

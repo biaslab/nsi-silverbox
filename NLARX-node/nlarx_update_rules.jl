@@ -16,8 +16,8 @@ S = Nothing
 s = Nothing
 
 # Approximating points
-approxx = Nothing
-approxθ = Nothing
+approxx = 0.0
+approxθ = 0.0
 
 function defineOrder(dim::Int64)
     global order, s, S
