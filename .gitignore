@@ -24,4 +24,10 @@ docs/site/
 Manifest.toml
 
 # Ignore notebook checkpoints
+.vscode/
+.ipynb_checkpoints
 */.ipynb_checkpoints
+archive/
+*/archive/*
+*/figures/*
+*/reports/*
