@@ -1,33 +1,33 @@
 using Revise
+using JLD
 using ProgressMeter
 using LinearAlgebra
 using ForneyLab
 using NARX
 
+import Base: invokelatest
 import ForneyLab: unsafeMean, unsafeCov
 
 include("gen_data.jl")
 include("visualization.jl")
 
 
-function experiment_FEM(; M1=1, M2=1, deg=1, T=100, split_index=50, vis=false)
+function generate_data(ϕ; deg=1, M1=1, M2=1, T=100, split_index=50, start_index=10)
 
     # Generate signal
     if deg == 1
-        input, output, ϕ, _ = gensignalARX(M1=M1, M2=M2, T=T)
-        M = M1+1+M2
+        input, output = gensignalARX(M1=M1, M2=M2, T=T)
     else
-        input, output, ϕ, _ = gensignalNARX(M1=M1, M2=M2, deg=deg, T=T)
-        M = (M1+1+M2)*deg + 1
+        input, output = gensignalNARX(ϕ, M1=M1, M2=M2, deg=deg, T=T)
     end
-    
 
     # Split data
-    ix_trn, ix_val = split_data(T, split_index)
-    T_trn = length(ix_trn)
-    T_val = length(ix_val)
+    ix_trn, ix_val = split_data(T, split_index, start_index=start_index)
 
-    "Model specification"
+    return input, output, ix_trn, ix_val
+end
+
+function model_specification(ϕ; M1=M1, M2=M2, M=M)
 
     graph = FactorGraph()
 
@@ -46,8 +46,14 @@ function experiment_FEM(; M1=1, M2=1, deg=1, T=100, split_index=50, vis=false)
 
     q = PosteriorFactorization(θ, τ, ids=[:θ :τ])
     algorithm = messagePassingAlgorithm([θ; τ], q)
-    source_code = algorithmSourceCode(algorithm)
-    eval(Meta.parse(source_code));
+    return algorithmSourceCode(algorithm)
+    
+end
+
+function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M=3, T=100, vis=false)
+
+    T_trn = length(ix_trn)
+    T_val = length(ix_val)
 
     "Inference execution"
 
@@ -61,12 +67,12 @@ function experiment_FEM(; M1=1, M2=1, deg=1, T=100, split_index=50, vis=false)
 
     # Initialize marginals
     marginals = Dict(:θ => ProbabilityDistribution(Multivariate, GaussianMeanVariance, m=θ_k[1], v=θ_k[2]),
-                    :τ => ProbabilityDistribution(Univariate, Gamma, a=τ_k[1], b=τ_k[2]))
+                     :τ => ProbabilityDistribution(Univariate, Gamma, a=τ_k[1], b=τ_k[2]))
 
     # Initialize prediction arrays
     predictions = (zeros(T,), zeros(T,))
 
-    @showprogress for k in ix_trn
+    for k in ix_trn
         
         # Update history vectors
         x_kmin1 = output[k-1:-1:k-M1]
@@ -106,15 +112,15 @@ function experiment_FEM(; M1=1, M2=1, deg=1, T=100, split_index=50, vis=false)
 
     "Simulation"
 
-    @showprogress for k in ix_val
+    for k in ix_val
         
-        if k == 1
+        if k == ix_val[1]
             # Update history vectors
-            x_kmin1 = output[1][k-1:-1:k-M1]
+            x_kmin1 = output[k-1:-1:k-M1]
             z_kmin1 = input[k-1:-1:k-M2]
         else
             # Update history vectors
-            x_kmin1 = predictions_FEM[1][k-1:-1:k-M1]
+            x_kmin1 = predictions[1][k-1:-1:k-M1]
             z_kmin1 = input[k-1:-1:k-M2]
         end
             
@@ -128,18 +134,62 @@ function experiment_FEM(; M1=1, M2=1, deg=1, T=100, split_index=50, vis=false)
     "Evaluation"
 
     # Compute prediction errors
-    pred_errors = (predictions[ix_val] - output[ix_val]).^2
+    pred_errors = (predictions[1][ix_val] - output[ix_val]).^2
 
     # Compute root mean square
     RMS = sqrt(mean(pred_errors))    
 
     if vis
-        plot_forecast(output, predictions[1], ix_trn, ix_val, posterior=true)
-        plot_errors(output, predictions[1], ix_val, plotargs=Dict(:color => "black"))
+        p1 = plot_forecast(output, predictions, ix_trn, ix_val, posterior=true)
+        p2 = plot_errors(output, predictions[1], ix_val)
+
+        savefig(p1, "figures/NARX-FEM_forecast.png")
+        savefig(p2, "figures/NARX-FEM_errors.png")
     end
 
-    return RMS
+    return RMS, predictions
 end
 
+# Orders
+M1 = 2
+M2 = 2
+deg = 1
 
-result = experiment_FEM(M1=2, M2=2, deg=1, T=100, split_index=50)
+# Signal lenghts
+start_index = 10
+split_index = 800 + start_index
+time_horizon = 1600 + start_index
+
+# Basis function
+if deg == 1
+    M = M1 + 1 + M2
+    ϕ(x::Array{Float64,1}) = x
+else
+    M = (M1 + 1 + M2)*deg + 1
+    global PP = zeros(M,1); 
+    for d=1:deg; PP = hcat(d .*Matrix{Float64}(I,M,M), PP); end
+    ϕ(x::Array{Float64,1}) = [prod(x.^PP[:,k]) for k = 1:size(PP,2)]
+end
+
+# Repetitions
+num_repeats = 100
+results = zeros(num_repeats,)
+preds = zeros(time_horizon, num_repeats)
+
+# Specify model and compile update functions
+source_code = model_specification(ϕ, M1=M1, M2=M2, M=M)
+eval(Meta.parse(source_code))
+
+@showprogress for r = 1:num_repeats
+    
+    input, output, ix_trn, ix_val = generate_data(ϕ, deg=deg, M1=M1, M2=M2, T=time_horizon, split_index=split_index, start_index=start_index)
+    results[r], predictions = experiment_FEM(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M=M, T=time_horizon, vis=false)
+    preds[:,r] = predictions[1]
+
+end
+
+# Report
+println("Mean RMS = "*string(mean(results)))
+
+# Write results to file
+save("results/results_FEM_M"*string(M)*"_deg"*string(deg)*"_S"*string(split_index-start_index)*".jld", "RMS", results)

@@ -30,4 +30,5 @@ Manifest.toml
 archive/
 */archive/*
 */figures/*
+*/results/*
 */reports/*

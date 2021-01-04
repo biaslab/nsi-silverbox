@@ -9,9 +9,6 @@ function gensignalARX(; M1=2, M2=2, T=100)
     τ_true = 1e3
     θ_true = 2e-1 .*randn(M,)
 
-    # Basis function
-    ϕ(x) = x
-
     # Input frequency and amplitude
     ω = 1/(2*π)
     A = range(0.99, stop=1.00, length=T)
@@ -38,15 +35,15 @@ function gensignalARX(; M1=2, M2=2, T=100)
             z_kmin1 = input[k-1:-1:k-M2]
             
             # Compute output
-            output[k] = θ_true'*ϕ([x_kmin1; input[k]; z_kmin1]) + errors[k]
+            output[k] = θ_true'*[x_kmin1; input[k]; z_kmin1] + errors[k]
         end
     end
 
-    return output, input, ϕ, (θ_true, τ_true)
+    return output, input
 end
 
 
-function gensignalNARX(; M1=2, M2=2, deg=1, T=100)
+function gensignalNARX(ϕ; M1=2, M2=2, deg=1, T=100)
 
     # Orders
     M = M1+1+M2
@@ -56,10 +53,6 @@ function gensignalNARX(; M1=2, M2=2, deg=1, T=100)
     τ_true = 1e3
     θ_true = 2e-1 .*randn(N,)
 
-    # Nonlinearity
-    C = zeros(M,1); for d=1:deg; C = hcat(d .*Matrix{Float64}(I,M,M), C); end
-    ϕ(x::Array{Float64,1}) = [prod(x.^C[:,k]) for k = 1:size(C,2)]
-
     # Input frequency and amplitude
     ω = 1/(2*π)
     A = range(0.99, stop=1.00, length=T)
@@ -90,7 +83,7 @@ function gensignalNARX(; M1=2, M2=2, deg=1, T=100)
         end
     end
 
-    return output, input, ϕ, (θ_true, τ_true)
+    return output, input
 end
 
 
