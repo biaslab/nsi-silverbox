@@ -1,25 +1,21 @@
-using Revise
 using JLD
 using ProgressMeter
 using LinearAlgebra
 using ForneyLab
 using NARX
 
-import Base: invokelatest
 import ForneyLab: unsafeMean, unsafeCov
-
 include("gen_data.jl")
-include("visualization.jl")
+# include("experiments-verification/gen_data.jl")
+
+vis = false
+if vis; include("visualization.jl"); end
 
 
-function generate_data(ϕ; deg=1, M1=1, M2=1, T=100, split_index=50, start_index=10)
+function generate_data(ϕ; θ_scale=0.1, τ_true=1e3, degree=1, M1=1, M2=1, T=100, split_index=50, start_index=10)
 
     # Generate signal
-    if deg == 1
-        input, output = gensignalARX(M1=M1, M2=M2, T=T)
-    else
-        input, output = gensignalNARX(ϕ, M1=M1, M2=M2, deg=deg, T=T)
-    end
+    input, output = gensignalNARX(ϕ, θ_scale, τ_true; M1=M1, M2=M2, degree=degree, T=T)
 
     # Split data
     ix_trn, ix_val = split_data(T, split_index, start_index=start_index)
@@ -62,7 +58,7 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M=3, T=10
     params_τ = (zeros(T_trn,1), zeros(T_trn,1))
 
     # Initialize priors
-    θ_k = (zeros(M,), 5 .*Matrix{Float64}(I,M,M))
+    θ_k = (zeros(M,), 10 .*Matrix{Float64}(I,M,M))
     τ_k = (1e3, 1e0)
 
     # Initialize marginals
@@ -114,15 +110,9 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M=3, T=10
 
     for k in ix_val
         
-        if k == ix_val[1]
-            # Update history vectors
-            x_kmin1 = output[k-1:-1:k-M1]
-            z_kmin1 = input[k-1:-1:k-M2]
-        else
-            # Update history vectors
-            x_kmin1 = predictions[1][k-1:-1:k-M1]
-            z_kmin1 = input[k-1:-1:k-M2]
-        end
+        # Update history vectors
+        x_kmin1 = predictions[1][k-1:-1:k-M1]
+        z_kmin1 = input[k-1:-1:k-M2]
             
         # Posterior predictive
         ϕx = ϕ([x_kmin1; input[k]; z_kmin1])
@@ -134,10 +124,10 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M=3, T=10
     "Evaluation"
 
     # Compute prediction errors
-    pred_errors = (predictions[1][ix_val] - output[ix_val]).^2
+    sq_errors = (predictions[1][ix_val] - output[ix_val]).^2
 
-    # Compute root mean square
-    RMS = sqrt(mean(pred_errors))    
+    # Compute root mean square error
+    RMS = sqrt(mean(sq_errors))
 
     if vis
         p1 = plot_forecast(output, predictions, ix_trn, ix_val, posterior=true)
@@ -147,49 +137,114 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M=3, T=10
         savefig(p2, "figures/NARX-FEM_errors.png")
     end
 
-    return RMS, predictions
+    return RMS
+end
+
+function experiment_RLS(input, output, ix_trn, ix_val, ϕ; M1=M1, M2=M2, M=M, λ=1.00, T=100, vis=false)
+
+    T_trn = length(ix_trn)
+
+    # Parameters
+    P = λ.*Matrix{Float64}(I,M,M)
+    w_k = zeros(M,)
+
+    # Preallocate prediction array
+    predictions = zeros(T,)
+
+    for k in ix_trn
+        
+        # Update data vector
+        ϕx = ϕ([output[k-1:-1:k-M1]; input[k:-1:k-M2]])
+        
+        # Update weights
+        α = output[k] - w_k'*ϕx 
+        g = P*ϕx*inv(λ + ϕx'*P*ϕx)
+        P = inv(λ)*P - g*ϕx'*inv(λ)*P
+        w_k = w_k + α*g
+        
+        # Prediction
+        predictions[k] = w_k'*ϕx
+        
+    end
+
+    # Simulation
+    for k in ix_val
+        
+        # Update data vector
+        x = [predictions[k-1:-1:k-M1]; input[k:-1:k-M2]]
+        
+        # Prediction
+        predictions[k] = w_k'*ϕ(x)
+        
+    end
+
+    # Compute prediction errors
+    sq_errors = (predictions[ix_val] - output[ix_val]).^2
+
+    # Compute root mean square error
+    RMS = sqrt(mean(sq_errors))
+    
+    if vis
+        p1 = plot_forecast(output, predictions, ix_trn, ix_val, posterior=false)
+        p2 = plot_errors(output, predictions, ix_val)
+
+        savefig(p1, "figures/NARX-RLS_forecast.png")
+        savefig(p2, "figures/NARX-RLS_errors.png")
+    end
+
+    return RMS
 end
 
 # Orders
+deg_true = 5
+degree = 3
 M1 = 2
 M2 = 2
-deg = 1
+M = M1+1+M2
+N = (M1+1+M2)*degree + 1
 
-# Signal lenghts
-start_index = 10
-split_index = 800 + start_index
-time_horizon = 1600 + start_index
+# Parameters
+λ = 0.98
+τ_true = 1e4
+θ_scale = 0.5
 
-# Basis function
-if deg == 1
-    M = M1 + 1 + M2
-    ϕ(x::Array{Float64,1}) = x
-else
-    M = (M1 + 1 + M2)*deg + 1
-    global PP = zeros(M,1); 
-    for d=1:deg; PP = hcat(d .*Matrix{Float64}(I,M,M), PP); end
-    ϕ(x::Array{Float64,1}) = [prod(x.^PP[:,k]) for k = 1:size(PP,2)]
-end
+# Signal lengths
+start_index = 50
+split_index = 50 + start_index
+time_horizon = 1000 + split_index
+
+# Basis functions
+PΨ = zeros(M,1)
+for d=1:deg_true; global PΨ = hcat(d .*Matrix{Float64}(I,M,M), PΨ); end
+ψ(x::Array{Float64,1}) = [prod(x.^PΨ[:,k]) for k = 1:size(PΨ,2)]
+PΦ = zeros(M,1)
+for d=1:degree; global PΦ = hcat(d .*Matrix{Float64}(I,M,M), PΦ); end
+ϕ(x::Array{Float64,1}) = [prod(x.^PΦ[:,k]) for k = 1:size(PΦ,2)]
 
 # Repetitions
 num_repeats = 100
-results = zeros(num_repeats,)
-preds = zeros(time_horizon, num_repeats)
+results_FEM = zeros(num_repeats,)
+results_RLS = zeros(num_repeats,)
 
 # Specify model and compile update functions
-source_code = model_specification(ϕ, M1=M1, M2=M2, M=M)
+source_code = model_specification(ϕ, M1=M1, M2=M2, M=N)
 eval(Meta.parse(source_code))
 
 @showprogress for r = 1:num_repeats
     
-    input, output, ix_trn, ix_val = generate_data(ϕ, deg=deg, M1=M1, M2=M2, T=time_horizon, split_index=split_index, start_index=start_index)
-    results[r], predictions = experiment_FEM(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M=M, T=time_horizon, vis=false)
-    preds[:,r] = predictions[1]
+    # Generate a signal
+    input, output, ix_trn, ix_val = generate_data(ψ, θ_scale=θ_scale, τ_true=τ_true, degree=deg_true, M1=M1, M2=M2, T=time_horizon, split_index=split_index, start_index=start_index)
+
+    # Experiments with different estimators
+    results_FEM[r] = experiment_FEM(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M=N, T=time_horizon, vis=vis)
+    results_RLS[r] = experiment_RLS(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M=N, T=time_horizon, vis=vis, λ=λ)
 
 end
 
 # Report
-println("Mean RMS = "*string(mean(results)))
+println("Mean RMS FEM = "*string(mean(filter(!isinf, filter(!isnan, results_FEM)))))
+println("Mean RMS RLS = "*string(mean(filter(!isinf, filter(!isnan, results_RLS)))))
 
 # Write results to file
-save("results/results_FEM_M"*string(M)*"_deg"*string(deg)*"_S"*string(split_index-start_index)*".jld", "RMS", results)
+save("results/results-NARX_FEM_M"*string(M)*"_degree"*string(degree)*"_S"*string(split_index-start_index)*".jld", "RMS", results_FEM)
+save("results/results-NARX_RLS_M"*string(M)*"_degree"*string(degree)*"_S"*string(split_index-start_index)*".jld", "RMS", results_RLS)

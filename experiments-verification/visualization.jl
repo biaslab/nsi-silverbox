@@ -7,7 +7,7 @@ function plot_forecast(output, predictions, ix_trn, ix_val; tt=1, posterior=fals
     T = length(output)
 
     # Limits
-    ylims = [minimum(output), maximum(output)]
+    ylims = [minimum(output[ix_trn[1]:end]), maximum(output[ix_trn[1]:end])]
 
     # Plot training output
     plot(ix_trn[1:tt:end], output[ix_trn[1:tt:end]], color="blue", ylims=ylims, label="training data", size=(800,300))

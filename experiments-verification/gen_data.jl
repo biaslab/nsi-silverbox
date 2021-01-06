@@ -39,23 +39,22 @@ function gensignalARX(; M1=2, M2=2, T=100)
         end
     end
 
-    return output, input
+    return input, output
 end
 
 
-function gensignalNARX(ϕ; M1=2, M2=2, deg=1, T=100)
+function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, T=100)
 
     # Orders
-    M = M1+1+M2
-    N = (M1+1+M2)*deg + 1
+    M = (M1+1+M2)*degree + 1
 
     # Parameters
-    τ_true = 1e3
-    θ_true = 2e-1 .*randn(N,)
+    θ_true = θ_scale .*(rand(M,) .- 0.5)
 
     # Input frequency and amplitude
     ω = 1/(2*π)
-    A = range(0.99, stop=1.00, length=T)
+    A = range(0.1, stop=1.0, length=T)
+    A = ones(T,) / 2.
 
     # Observation array
     input = zeros(T,)
@@ -83,7 +82,7 @@ function gensignalNARX(ϕ; M1=2, M2=2, deg=1, T=100)
         end
     end
 
-    return output, input
+    return input, output
 end
 
 
