@@ -1,17 +1,17 @@
 using Random
 
-function gensignalARX(; M1=2, M2=2, T=100)
+function gensignalARX(θ_true, τ_true; M1=2, M2=2, T=100)
 
     # Orders
     M = M1+1+M2
 
     # Parameters
-    τ_true = 1e3
-    θ_true = 2e-1 .*randn(M,)
+    θ_true = θ_scale .*(rand(M,) .- 0.5)
 
     # Input frequency and amplitude
     ω = 1/(2*π)
-    A = range(0.99, stop=1.00, length=T)
+    # A = range(0.99, stop=1.00, length=T)
+    A = ones(T,) / 2.
 
     # Observation array
     input = zeros(T,)
@@ -53,7 +53,7 @@ function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, T=100)
 
     # Input frequency and amplitude
     ω = 1/(2*π)
-    A = range(0.1, stop=1.0, length=T)
+    # A = range(0.1, stop=1.0, length=T)
     A = ones(T,) / 2.
 
     # Observation array
@@ -79,6 +79,49 @@ function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, T=100)
             
             # Compute output
             output[k] = θ_true'*ϕ([x_kmin1; input[k]; z_kmin1]) + errors[k]
+        end
+    end
+
+    return input, output
+end
+
+function gensignalNARMAX(ϕ, θ_scale, τ_true; M1=2, M2=2, M3=2, degree=1, T=100)
+
+    # Orders
+    M = (M1+1+M2+M3)*degree + 1
+
+    # Parameters
+    θ_true = θ_scale .*(rand(M,) .- 0.5)
+
+    # Input frequency and amplitude
+    ω = 1/(2*π)
+    # A = range(0.1, stop=1.0, length=T)
+    A = ones(T,) / 2.
+
+    # Observation array
+    input = zeros(T,)
+    output = zeros(T,)
+    errors = zeros(T,)
+
+    for k = 1:T
+        
+        # Input
+        input[k] = A[k]*cos(ω*k)
+        
+        # Generate noise
+        errors[k] = sqrt(inv(τ_true))*randn(1)[1]
+    
+        # Output
+        if k < (maximum([M1,M2,M3])+1)
+            output[k] = input[k] + errors[k]
+        else
+            # Update history vectors
+            x_kmin1 = output[k-1:-1:k-M1]
+            z_kmin1 = input[k-1:-1:k-M2]
+            r_kmin1 = errors[k-1:-1:k-M3]
+            
+            # Compute output
+            output[k] = θ_true'*ϕ([x_kmin1; input[k]; z_kmin1; r_kmin1]) + errors[k]
         end
     end
 
