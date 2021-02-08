@@ -1,6 +1,9 @@
 using Random
 
-function gensignalARX(θ_true, τ_true; M1=2, M2=2, T=100)
+include("fMultiSinGen.jl")
+
+
+function gensignalARX(θ_true, τ_true; M1=2, M2=2, fMin=0.8, fMax=1.0, fs=1.0, T=100)
 
     # Orders
     M = M1+1+M2
@@ -9,12 +12,9 @@ function gensignalARX(θ_true, τ_true; M1=2, M2=2, T=100)
     θ_true = θ_scale .*(rand(M,) .- 0.5)
 
     # Input frequency and amplitude
-    ω = 1/(2*π)
-    # A = range(0.99, stop=1.00, length=T)
-    A = ones(T,) / 2.
+    input, _ = fMultiSinGen(T, 1, 1, fMin=fMin, fMax=fMax, fs=fs, type_signal="odd")
 
     # Observation array
-    input = zeros(T,)
     output = zeros(T,)
     errors = zeros(T,)
 
@@ -43,21 +43,19 @@ function gensignalARX(θ_true, τ_true; M1=2, M2=2, T=100)
 end
 
 
-function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, T=100)
+function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, fMin=0.8, fMax=1.0, fs=1.0, T=100)
 
     # Orders
     M = (M1+1+M2)*degree + 1
 
     # Parameters
     θ_true = θ_scale .*(rand(M,) .- 0.5)
+    θ_true[end] = 0.
 
     # Input frequency and amplitude
-    ω = 1/(2*π)
-    # A = range(0.1, stop=1.0, length=T)
-    A = ones(T,) / 2.
+    input, _ = fMultiSinGen(T, 1, 1, fMin=fMin, fMax=fMax, fs=fs, type_signal="odd")
 
     # Observation array
-    input = zeros(T,)
     output = zeros(T,)
     errors = zeros(T,)
 
@@ -85,28 +83,23 @@ function gensignalNARX(ϕ, θ_scale, τ_true; M1=2, M2=2, degree=1, T=100)
     return input, output
 end
 
-function gensignalNARMAX(ϕ, θ_scale, τ_true; M1=2, M2=2, M3=2, degree=1, T=100)
+function gensignalNARMAX(ϕ, θ_scale, τ_true; M1=2, M2=2, M3=2, degree=1, fMin=0.8, fMax=1.0, fs=1.0, uStd=1., T=100, num_periods=1, points_period=1)
 
     # Orders
     M = (M1+1+M2+M3)*degree + 1
 
     # Parameters
     θ_true = θ_scale .*(rand(M,) .- 0.5)
+    θ_true[end] = 0.0
 
     # Input frequency and amplitude
-    ω = 1/(2*π)
-    # A = range(0.1, stop=1.0, length=T)
-    A = ones(T,) / 2.
+    input, _ = fMultiSinGen(points_period, num_periods, 1, fMin=fMin, fMax=fMax, fs=fs, type_signal="full", uStd=uStd)
 
     # Observation array
-    input = zeros(T,)
     output = zeros(T,)
     errors = zeros(T,)
 
     for k = 1:T
-        
-        # Input
-        input[k] = A[k]*cos(ω*k)
         
         # Generate noise
         errors[k] = sqrt(inv(τ_true))*randn(1)[1]

@@ -10,7 +10,7 @@ function fMultiSinGen(N::Integer,
                       fs::Float64=1.0,
                       type_signal::String="full",
                       nGroup::Integer=3,
-                      uStd::Integer=1)
+                      uStd::Float64=1)
     """
     generates a zero-mean random phase multisine with std = 1
     INPUT
