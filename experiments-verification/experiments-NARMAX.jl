@@ -60,7 +60,7 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M3=1, N=3
 
     # Initialize priors
     θ_k = (zeros(N,), 10 .*Matrix{Float64}(I,N,N))
-    τ_k = (1e3, 1e0)
+    τ_k = (5e4, 1e0)
 
     # Initialize marginals
     marginals = Dict(:θ => ProbabilityDistribution(Multivariate, GaussianMeanVariance, m=θ_k[1], v=θ_k[2]),
@@ -222,16 +222,16 @@ M = M1+1+M2+M3
 N = (M1+1+M2+M3)*degree + 1
 
 # Input signal params
-num_periods = 400
-points_period = 100
+num_periods = 20
+points_period = 400000
 fMin = 0.0
-fMax = 10.0
-fs = 100.0
+fMax = 100.0
+fs = 1000 .* fMax
 uStd = 0.1
 
 # Output signal params
 λ = .98
-τ_true = 1e4
+τ_true = 1e5
 θ_scale = 0.5
 
 # Signal lengths
