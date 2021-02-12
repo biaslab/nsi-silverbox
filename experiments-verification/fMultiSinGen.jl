@@ -36,7 +36,7 @@ function fMultiSinGen(N::Integer,
     Vrije Universiteit Brussel, Brussels Belgium
     10/05/2017
     
-    translated from Matlab to Julia
+    translated from Matlab to Julia by
     Wouter Kouw
     TU Eindhoven, Eindhoven, Netherlands
     22/01/2021
@@ -86,7 +86,7 @@ function fMultiSinGen(N::Integer,
     nLines = length(lines)
 
     # multisine generation - frequency domain implementation
-    U = zeros(ComplexF64, linesMax,M)
+    U = zeros(ComplexF64, N,M)
 
     # excite the selected frequencies
     U[lines,:] = exp.(2im*pi*rand(nLines,M))

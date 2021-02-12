@@ -47,7 +47,7 @@ linesMax = floor(options.fMax/f0)+1;
 lines = linesMin:linesMax;
 
 % remove dc
-if lines(1) == 1;
+if lines(1) == 1
     lines = lines(2:end);
 end
 
@@ -78,9 +78,10 @@ end
 nLines = length(lines);
 
 %% multisine generation - frequency domain implementation
-U = zeros(linesMax,M);
-U(lines,:) = exp(2i*pi*rand(nLines,M)); % excite the selected frequencies
+U = zeros(N,M);
+U(lines,:) = exp(2i*pi*rand(nLines,M)); % excite the selected frequenciesoptio
 u = real(ifft(U)); % go to time domain
 u = uStd*u./std(u(:,1)); % rescale to obtain desired rms std
 
 u = repmat(u,[P,1]); % generate P periods
+
