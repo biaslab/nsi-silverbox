@@ -60,7 +60,7 @@ function experiment_FEM(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M3=1, N=3
 
     # Initialize priors
     θ_k = (zeros(N,), 10 .*Matrix{Float64}(I,N,N))
-    τ_k = (5e4, 1e0)
+    τ_k = (1e5, 1e0)
 
     # Initialize marginals
     marginals = Dict(:θ => ProbabilityDistribution(Multivariate, GaussianMeanVariance, m=θ_k[1], v=θ_k[2]),
@@ -214,29 +214,29 @@ end
 
 # Orders
 deg_true = 3
-degree = 1
+deg_model = 3
 M1 = 2
 M2 = 2
 M3 = 2
 M = M1+1+M2+M3
-N = (M1+1+M2+M3)*degree + 1
+N = (M1+1+M2+M3)*deg_model + 1
 
 # Input signal params
-num_periods = 20
-points_period = 400000
+num_periods = 10
+points_period = 1000
 fMin = 0.0
 fMax = 100.0
-fs = 1000 .* fMax
+fs = 10 .*fMax
 uStd = 0.1
 
 # Output signal params
-λ = .98
-τ_true = 1e5
+λ = 1.00
+τ_true = 1e6
 θ_scale = 0.5
 
 # Signal lengths
 start_index = 50
-split_index = 50 + start_index
+split_index = 6400 + start_index
 time_horizon = 1000 + split_index
 
 # Basis function true signal
@@ -270,8 +270,8 @@ eval(Meta.parse(source_code))
 end
 
 # Report
-println("Mean RMS FEM = "*string(mean(filter(!isinf, filter(!isnan, results_FEM)))))
-println("Mean RMS RLS = "*string(mean(filter(!isinf, filter(!isnan, results_RLS)))))
+println("Mean RMS FEM = "*string(mean(filter(!isinf, filter(!isnan, results_FEM))))*" ("*string(length(filter(isnan, results_FEM))/num_repeats)*"% rejected)")
+println("Mean RMS RLS = "*string(mean(filter(!isinf, filter(!isnan, results_RLS))))*" ("*string(length(filter(isnan, results_RLS))/num_repeats)*"% rejected)")
 println("Proportion FEM < RLS = "*string(mean(results_FEM .< results_RLS)))
 
 # Write results to file
