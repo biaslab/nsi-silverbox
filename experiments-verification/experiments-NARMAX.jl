@@ -212,17 +212,25 @@ function experiment_RLS(input, output, ix_trn, ix_val, ϕ; M1=1, M2=1, M3=1, N=1
     return RMS
 end
 
+# Polynomial degrees
+deg_t = 3
+deg_m = 3
+
 # Orders
-deg_true = 3
-deg_model = 3
-M1 = 2
-M2 = 2
-M3 = 2
-M = M1+1+M2+M3
-N = (M1+1+M2+M3)*deg_model + 1
+M1_t = 3
+M2_t = 3
+M3_t = 3
+M_t = M1_t + 1 + M2_t + M3_t
+N_t = M_t*deg_t + 1
+
+M1_m = 3
+M2_m = 3
+M3_m = 3
+M_m = M1_m + 1 + M2_m + M3_m
+N_m = M_m*deg_m + 1
 
 # Input signal params
-num_periods = 10
+num_periods = 20
 points_period = 1000
 fMin = 0.0
 fMax = 100.0
@@ -234,19 +242,14 @@ uStd = 0.1
 τ_true = 1e6
 θ_scale = 0.5
 
-# Signal lengths
-start_index = 50
-split_index = 6400 + start_index
-time_horizon = 1000 + split_index
-
 # Basis function true signal
-PΨ = zeros(M,1)
-for d=1:deg_true; global PΨ = hcat(d .*Matrix{Float64}(I,M,M), PΨ); end
+PΨ = zeros(M_t,1)
+for d=1:deg_t; global PΨ = hcat(d .*Matrix{Float64}(I,M_t,M_t), PΨ); end
 ψ(x::Array{Float64,1}) = [prod(x.^PΨ[:,k]) for k = 1:size(PΨ,2)]
 
 # Basis function model
-PΦ = zeros(M,1)
-for d=1:degree; global PΦ = hcat(d .*Matrix{Float64}(I,M,M), PΦ); end
+PΦ = zeros(M_m,1)
+for d=1:deg_m; global PΦ = hcat(d .*Matrix{Float64}(I,M_m,M_m), PΦ); end
 ϕ(x::Array{Float64,1}) = [prod(x.^PΦ[:,k]) for k = 1:size(PΦ,2)]
 
 # Repetitions
@@ -254,18 +257,23 @@ num_repeats = 100
 results_FEM = zeros(num_repeats,)
 results_RLS = zeros(num_repeats,)
 
+# Signal lengths
+start_index = 50
+split_index = 12800 + start_index
+time_horizon = 1000 + split_index
+
 # Specify model and compile update functions
-source_code = model_specification(ϕ, M1=M1, M2=M2, M3=M3, M=N)
+source_code = model_specification(ϕ, M1=M1_m, M2=M2_m, M3=M3_m, M=N_m)
 eval(Meta.parse(source_code))
 
 @showprogress for r = 1:num_repeats
     
     # Generate a signal
-    input, output, ix_trn, ix_val = generate_data(ψ, θ_scale=θ_scale, τ_true=τ_true, degree=deg_true, M1=M1, M2=M2, M3=M3, fMin=fMin, fMax=fMax, fs=fs, uStd=uStd, T=time_horizon, split_index=split_index, start_index=start_index, num_periods=num_periods, points_period=points_period)
+    input, output, ix_trn, ix_val = generate_data(ψ, θ_scale=θ_scale, τ_true=τ_true, degree=deg_t, M1=M1_t, M2=M2_t, M3=M3_t, fMin=fMin, fMax=fMax, fs=fs, uStd=uStd, T=time_horizon, split_index=split_index, start_index=start_index, num_periods=num_periods, points_period=points_period)
 
     # Experiments with different estimators
-    results_FEM[r] = experiment_FEM(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M3=M3, N=N, T=time_horizon, vis=vis)
-    results_RLS[r] = experiment_RLS(input, output, ix_trn, ix_val, ϕ, M1=M1, M2=M2, M3=M3, N=N, T=time_horizon, vis=vis, λ=λ)
+    results_FEM[r] = experiment_FEM(input, output, ix_trn, ix_val, ϕ, M1=M1_m, M2=M2_m, M3=M3_m, N=N_m, T=time_horizon, vis=vis)
+    results_RLS[r] = experiment_RLS(input, output, ix_trn, ix_val, ϕ, M1=M1_m, M2=M2_m, M3=M3_m, N=N_m, T=time_horizon, vis=vis, λ=λ)
 
 end
 
@@ -275,5 +283,5 @@ println("Mean RMS RLS = "*string(mean(filter(!isinf, filter(!isnan, results_RLS)
 println("Proportion FEM < RLS = "*string(mean(results_FEM .< results_RLS)))
 
 # Write results to file
-save("results/results-NARMAX_FEM_M"*string(M)*"_degree"*string(degree)*"_S"*string(split_index-start_index)*".jld", "RMS", results_FEM)
-save("results/results-NARMAX_RLS_M"*string(M)*"_degree"*string(degree)*"_S"*string(split_index-start_index)*".jld", "RMS", results_RLS)
+save("results/results-NARMAX_FEM_M"*string(M_m)*"_degree"*string(deg_m)*"_S"*string(split_index-start_index)*".jld", "RMS", results_FEM)
+save("results/results-NARMAX_RLS_M"*string(M_m)*"_degree"*string(deg_m)*"_S"*string(split_index-start_index)*".jld", "RMS", results_RLS)
